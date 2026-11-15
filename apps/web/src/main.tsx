@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { createRun, getAttackPlan, importScenario, listAttacks, listEvents, listScenarios, seededScenario, type AttackPlan, type AttackSummary, type ProtocolEvent, type Run, type Scenario } from "./api/client";
-import { subscribeRunEvents } from "./api/events";
+import { mergeProtocolEvents, subscribeRunEvents } from "./api/events";
 import { EventTimeline } from "./features/runs/EventTimeline";
 import { InspectorPanel } from "./features/runs/InspectorPanel";
 import { ModelOutputPanel } from "./features/runs/ModelOutputPanel";
@@ -53,9 +53,11 @@ function App() {
     if (!run) return;
     let active = true;
     setEvents([]); setSelectedEvent(undefined);
-    listEvents(run.id).then((initial) => { if (active) setEvents(initial); }).catch(() => undefined);
+    listEvents(run.id).then((initial) => {
+      if (active) setEvents((current) => mergeProtocolEvents(current, initial));
+    }).catch(() => undefined);
     const stop = subscribeRunEvents(run.id, 0, (event) => {
-      setEvents((current) => current.some((item) => item.event_id === event.event_id) ? current : [...current, event].sort((a, b) => a.sequence - b.sequence));
+      setEvents((current) => mergeProtocolEvents(current, [event]));
     }, () => setMessage("Live stream reconnecting..."));
     return () => { active = false; stop(); };
   }, [run?.id]);

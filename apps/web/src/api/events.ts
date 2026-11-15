@@ -4,6 +4,15 @@ export function parseEventData(data: string): ProtocolEvent {
   return JSON.parse(data) as ProtocolEvent;
 }
 
+export function mergeProtocolEvents(
+  current: ProtocolEvent[],
+  incoming: ProtocolEvent[],
+): ProtocolEvent[] {
+  const byId = new Map(current.map((event) => [event.event_id, event]));
+  for (const event of incoming) byId.set(event.event_id, event);
+  return [...byId.values()].sort((left, right) => left.sequence - right.sequence);
+}
+
 export function subscribeRunEvents(
   runId: string,
   afterSequence: number,
