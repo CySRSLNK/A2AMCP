@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException
 
 from .a2a_client import A2AClient
 from .agent_card import AgentCard
+from shared.python.lab_core.events_client import EventClient
 from .model_proxy import DynamicModelAdapter, OpenAICompatibleAdapter
 from .mcp_adapter import GatewayMcpClient
 from .planner import AgentRuntime, TaskInput
@@ -40,6 +41,9 @@ runtime = AgentRuntime(
     allowed_targets=_csv_env("AGENT_ALLOWED_TARGETS", default_targets),
     allowed_mcp_servers=_csv_env("AGENT_ALLOWED_MCP_SERVERS", "mcp-tools,mcp-resources"),
     allowed_tools=_csv_env("AGENT_ALLOWED_TOOLS", default_tools),
+    event_sink=EventClient(
+        os.getenv("CONTROL_PLANE_URL", "http://control-plane:8000")
+    ).append,
 )
 
 

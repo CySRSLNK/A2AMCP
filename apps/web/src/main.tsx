@@ -5,6 +5,7 @@ import { createRun, getAttackPlan, importScenario, listAttacks, listEvents, list
 import { subscribeRunEvents } from "./api/events";
 import { EventTimeline } from "./features/runs/EventTimeline";
 import { InspectorPanel } from "./features/runs/InspectorPanel";
+import { ModelOutputPanel } from "./features/runs/ModelOutputPanel";
 import { TopologyPanel } from "./features/runs/TopologyPanel";
 import { ReplayControls } from "./features/replay/ReplayControls";
 import { ScenarioForm } from "./features/scenarios/ScenarioForm";
@@ -99,7 +100,7 @@ function App() {
       <p className="system-message" role="status">{message}</p>
       <div className="workspace-grid">
         <div className="main-column"><TopologyPanel run={run} /><EventTimeline events={events} selected={selectedEvent?.event_id} onSelect={setSelectedEvent} /></div>
-        <aside className="side-column"><InspectorPanel event={selectedEvent} /><section className="panel controls-panel"><div className="panel-heading"><span>Run controls</span><span className="muted">{events.length} events</span></div><ReplayControls runId={run?.id} /></section></aside>
+        <aside className="side-column"><ModelOutputPanel events={events} /><InspectorPanel event={selectedEvent} /><section className="panel controls-panel"><div className="panel-heading"><span>Run controls</span><span className="muted">{events.length} events</span></div><ReplayControls runId={run?.id} /></section></aside>
       </div>
       </>}
       <footer className="footer-note">Capture mode: <strong>mediated</strong> · policy snapshot: <strong>frozen at run start</strong> · hidden reasoning is never rendered</footer>

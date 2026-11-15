@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from shared.python.lab_core.contracts import CorrelationContext, ModelRequest
+from shared.python.lab_core.contracts import CorrelationContext, EventDraft, ModelRequest
 
 from .model_proxy import ModelAdapter
 
@@ -80,6 +81,7 @@ class AgentRuntime:
         allowed_targets: set[str] | None = None,
         allowed_mcp_servers: set[str] | None = None,
         allowed_tools: set[str] | None = None,
+        event_sink: Callable[[EventDraft], Any] | None = None,
     ):
         self.agent_id = agent_id
         self.model = model
@@ -99,6 +101,7 @@ class AgentRuntime:
         self.allowed_tools = (
             {"calculator", "fixture_http_get"} if allowed_tools is None else set(allowed_tools)
         )
+        self.event_sink = event_sink
 
     async def handle_task(self, task: TaskInput) -> TaskResult:
         agent_config = self._runtime_agent_config(task)
@@ -111,29 +114,90 @@ class AgentRuntime:
             return TaskResult(status="blocked", summary="maximum delegation depth exceeded")
         if task.delegation_edges.count(f"{self.agent_id}->{self.agent_id}") > 1:
             return TaskResult(status="blocked", summary="repeated delegation edge detected")
+        context = CorrelationContext(
+            run_id=task.run_id,
+            task_id=task.task_id,
+            parent_task_id=task.parent_task_id,
+            agent_id=self.agent_id,
+            hop=task.hop,
+            request_id=str(task.task_id),
+        )
+        model_config = self._model_config(task)
+        messages = self._messages(task)
+        model_request = ModelRequest(
+            provider=model_config.get("provider", self.model_provider),
+            model=model_config.get("model_name", self.model_name),
+            messages=messages,
+            metadata={
+                "role": "root" if self.agent_id == "root-agent" else "worker",
+                "agent_id": self.agent_id,
+                "hop": task.hop,
+                "allowed_targets": sorted(self._allowed_targets(task)),
+                "allowed_mcp_servers": sorted(self._allowed_mcp_servers(task)),
+                "allowed_tools": sorted(self._allowed_tools(task)),
+                "run_id": str(task.run_id),
+                "runtime_config_version": task.runtime_config.get("config_version"),
+            },
+        )
+        self._emit_model_event(
+            context,
+            "completion.request",
+            "outbound",
+            {
+                "provider": model_request.provider,
+                "model": model_request.model,
+                "agent_id": self.agent_id,
+                "hop": task.hop,
+                "message_count": len(messages),
+                "allowed_targets": model_request.metadata["allowed_targets"],
+                "allowed_mcp_servers": model_request.metadata["allowed_mcp_servers"],
+                "allowed_tools": model_request.metadata["allowed_tools"],
+            },
+            "request",
+        )
         try:
-            response = await self.model.complete(
-                ModelRequest(
-                    provider=self._model_config(task).get("provider", self.model_provider),
-                    model=self._model_config(task).get("model_name", self.model_name),
-                    messages=self._messages(task),
-                    metadata={
-                        "role": "root" if self.agent_id == "root-agent" else "worker",
-                        "agent_id": self.agent_id,
-                        "hop": task.hop,
-                        "allowed_targets": sorted(self._allowed_targets(task)),
-                        "allowed_mcp_servers": sorted(self._allowed_mcp_servers(task)),
-                        "allowed_tools": sorted(self._allowed_tools(task)),
-                        "run_id": str(task.run_id),
-                        "runtime_config_version": task.runtime_config.get("config_version"),
-                    },
-                )
+            response = await self.model.complete(model_request)
+            self._emit_model_event(
+                context,
+                "completion.response",
+                "inbound",
+                {
+                    "provider": response.provider,
+                    "model": response.model,
+                    "output": response.output,
+                    "usage": response.usage,
+                },
+                "response",
             )
             decision = AgentDecision.model_validate(_normalize_model_decision(response.output))
         except httpx.TimeoutException:
+            self._emit_model_event(
+                context,
+                "completion.error",
+                "inbound",
+                {"error": "model request timed out"},
+                "error",
+            )
             return TaskResult(status="failed", summary="model request timed out")
+        except httpx.HTTPError:
+            self._emit_model_event(
+                context,
+                "completion.error",
+                "inbound",
+                {"error": "model request failed"},
+                "error",
+            )
+            return TaskResult(status="failed", summary="model request failed")
         except (ValidationError, ValueError) as exc:
-            return TaskResult(status="failed", summary=f"invalid model decision: {exc}")
+            summary = f"invalid model decision: {exc}"
+            self._emit_model_event(
+                context,
+                "completion.error",
+                "inbound",
+                {"error": summary},
+                "error",
+            )
+            return TaskResult(status="failed", summary=summary)
 
         if decision.action == "answer":
             return TaskResult(
@@ -251,6 +315,31 @@ class AgentRuntime:
     def _model_config(self, task: TaskInput) -> dict[str, Any]:
         model = task.runtime_config.get("model", {})
         return model if isinstance(model, dict) else {}
+
+    def _emit_model_event(
+        self,
+        context: CorrelationContext,
+        operation: str,
+        direction: str,
+        payload: dict[str, Any],
+        suffix: str,
+    ) -> None:
+        if self.event_sink is None:
+            return
+        try:
+            self.event_sink(
+                EventDraft(
+                    context=context,
+                    protocol="model",
+                    operation=operation,
+                    direction=direction,
+                    payload=payload,
+                    source_event_key=f"{context.task_id}:model:{suffix}",
+                )
+            )
+        except Exception:
+            # Observability must not change the model decision or fail-closed behavior.
+            return
 
     def _messages(self, task: TaskInput) -> list[dict[str, str]]:
         targets = ", ".join(sorted(self._allowed_targets(task))) or "none"

@@ -13,6 +13,8 @@ docker-compose up --build
 
 The web workbench is available at `http://127.0.0.1:5173` and the control-plane health endpoint is `http://127.0.0.1:8000/healthz`. On systems with the Compose plugin, use `docker compose` instead.
 
+The Workbench `Model output` panel shows the final content returned by the complete delegation chain. For example, when the calculator MCP tool returns `15`, the panel shows `15` instead of an intermediate `delegate` or `mcp_call` decision. The event timeline defaults to key events and hides duplicate-looking intermediate A2A relay responses; switch to `All events` to inspect the complete protocol evidence. Model requests expose only safe metadata; full prompts and API keys are never shown in the panel or event stream.
+
 The `Control` view in the web workbench is a runtime configuration console. It changes the model provider/name/base URL, applies explicit API-key preserve/replace/clear actions, edits root/worker policy allowlists, and manages MCP proxy registrations without restarting Compose. MCP registration is a gateway proxy entry; it does not create or remove containers.
 
 Runtime API keys are encrypted at rest. Generate a Fernet key and set it in `.env` before replacing a key:

@@ -65,6 +65,8 @@ docker compose up --build -d
 - API 文档：http://127.0.0.1:8000/docs
 - 健康检查：http://127.0.0.1:8000/healthz
 
+Workbench 中的 `Model output` 面板会显示整条委派链最终返回的内容。例如调用 calculator 得到 `15` 时，面板显示 `15`，而不是中间模型的 `delegate` 或 `mcp_call` 决策。事件时间线默认隐藏中间 Agent 转发产生的重复 A2A response；切换 `All events` 可以查看完整协议证据。模型请求只记录安全元数据；完整提示词和 API Key 不会显示在面板或事件中。
+
 ## 运行时控制后台
 
 打开 Web 工作台右上角的 `Control` 页面，可以在不重启 Compose 的情况下修改后续运行使用的模型和 MCP 代理注册：

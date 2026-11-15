@@ -43,6 +43,10 @@ select:focus, textarea:focus { border-color: #6dd6c1; box-shadow: 0 0 0 2px #6dd
 .workspace-grid { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(300px, .8fr); gap: 16px; align-items: start; }
 .main-column, .side-column { display: grid; gap: 16px; min-width: 0; }
 .panel-heading { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid #293541; color: #d7e0e8; font-size: 13px; font-weight: 750; }
+.timeline-heading-actions { display: flex; align-items: center; gap: 8px; }
+.timeline-view-toggle { display: inline-flex; gap: 2px; border: 1px solid #334354; border-radius: 4px; padding: 2px; }
+.timeline-view-toggle button { border: 0; border-radius: 3px; background: transparent; color: #8391a1; padding: 4px 6px; font-size: 9px; font-weight: 750; }
+.timeline-view-toggle button.active { background: #23333d; color: #8fe1ce; }
 .topology-row { display: flex; align-items: center; gap: 12px; min-height: 145px; padding: 22px 18px 10px; overflow-x: auto; }
 .node { min-width: 150px; border: 1px solid #344758; border-left: 3px solid #6dd6c1; border-radius: 5px; padding: 13px; background: #17222c; }.node.worker { border-left-color: #8bb8ff; }.node.tool { border-left-color: #efbd69; }
 .node strong, .node small { display: block; }.node strong { color: #edf2f7; font-size: 13px; }.node small { margin-top: 6px; color: #8391a1; font-size: 11px; }.edge { color: #6d7d8e; font-size: 10px; font-weight: 750; letter-spacing: .08em; }
@@ -52,6 +56,16 @@ select:focus, textarea:focus { border-color: #6dd6c1; box-shadow: 0 0 0 2px #6dd
 .protocol { width: max-content; border-radius: 3px; padding: 3px 5px; font-size: 9px; font-weight: 800; letter-spacing: .05em; }.protocol-a2a { background: #1b4150; color: #76d9e0; }.protocol-mcp { background: #4b3c21; color: #f2c774; }.protocol-model { background: #352650; color: #c9a5f8; }.protocol-policy { background: #4a2d34; color: #f0a6ad; }
 .event-sequence, .event-hop { color: #718292; font-variant-numeric: tabular-nums; }.event-operation { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.event-agent { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #d5dde5; }
 .details { display: grid; gap: 0; margin: 0; padding: 4px 16px 12px; }.details div { display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px solid #202b35; padding: 9px 0; }.details dt { color: #7f8e9d; font-size: 11px; }.details dd { margin: 0; color: #d7e0e8; font-size: 11px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.payload { max-height: 260px; margin: 0 16px 16px; overflow: auto; border: 1px solid #293541; border-radius: 5px; background: #0b1117; padding: 12px; color: #a9d7c9; font-size: 10px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }.replay-controls { display: grid; gap: 10px; padding: 14px 16px 16px; }.replay-controls button { justify-self: start; }.footer-note { margin-top: 18px; color: #687887; font-size: 11px; }.footer-note strong { color: #9cabb8; font-weight: 600; }
+.model-output-list { display: grid; gap: 8px; padding: 10px 12px 12px; max-height: 420px; overflow: auto; }
+.model-output-item { border: 1px solid #293541; border-left: 3px solid #a889e8; border-radius: 5px; background: #0f171f; padding: 10px; }
+.model-output-item.error { border-left-color: #ec6f76; }
+.model-output-header, .model-output-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.model-output-header { color: #d7e0e8; font-size: 11px; font-weight: 750; }
+.model-output-sequence { color: #718292; font-variant-numeric: tabular-nums; }
+.model-output-kind, .model-output-action { border-radius: 3px; padding: 3px 5px; background: #352650; color: #c9a5f8; font-size: 9px; text-transform: uppercase; letter-spacing: .06em; }
+.model-output-item.error .model-output-kind { background: #4a2d34; color: #f0a6ad; }
+.model-output-meta { margin-top: 7px; color: #8391a1; font-size: 10px; }
+.model-output-payload { max-height: 170px; margin: 9px 0 0; overflow: auto; border-top: 1px solid #202b35; padding-top: 9px; color: #a9d7c9; font-size: 10px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
 .control-panel { margin-top: 22px; }
 .control-section { padding: 16px; border-bottom: 1px solid #293541; }
 .control-section:last-of-type { border-bottom: 0; }
