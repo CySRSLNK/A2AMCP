@@ -14,6 +14,17 @@ export function parseCsv(value: string): string[] {
   return [...new Set(value.split(",").map((item) => item.trim()).filter(Boolean))];
 }
 
+export function formatModelTestResult(result: { ok: boolean; status_code?: number; error?: string }) {
+  if (result.ok) return "Model connection succeeded.";
+  const status = result.status_code ? ` (${result.status_code})` : "";
+  const detail = result.error ? `: ${result.error}` : "";
+  return `Model connection failed${status}${detail}${detail.endsWith(".") ? "" : "."}`;
+}
+
+export function formatRuntimeConfigSaved(version: number) {
+  return `Runtime config v${version} saved.`;
+}
+
 export function buildRuntimeConfigPayload(
   config: RuntimeConfig,
   apiKeyAction: "preserve" | "replace" | "clear",
@@ -50,11 +61,16 @@ function emptyServer(): McpServerRuntimeConfig {
   };
 }
 
+type FeedbackTone = "info" | "success" | "error";
+type Feedback = { tone: FeedbackTone; message: string };
+
 export function ControlPanel({ onMessage }: { onMessage: (message: string) => void }) {
   const [config, setConfig] = useState<RuntimeConfig>();
   const [apiKeyAction, setApiKeyAction] = useState<"preserve" | "replace" | "clear">("preserve");
   const [apiKey, setApiKey] = useState("");
   const [saving, setSaving] = useState(false);
+  const [testingModel, setTestingModel] = useState(false);
+  const [feedback, setFeedback] = useState<Feedback>();
   const [servers, setServers] = useState<McpServerRuntimeConfig[]>([]);
 
   useEffect(() => {
@@ -72,19 +88,35 @@ export function ControlPanel({ onMessage }: { onMessage: (message: string) => vo
 
   const save = async () => {
     setSaving(true);
+    setFeedback({ tone: "info", message: "Saving runtime config..." });
     try {
       const saved = await updateRuntimeConfig(buildRuntimeConfigPayload({ ...config, mcp_servers: servers }, apiKeyAction, apiKey));
       setConfig(saved); setServers(saved.mcp_servers); setApiKey(""); setApiKeyAction("preserve");
-      onMessage(`Runtime config v${saved.version} saved.`);
-    } catch (error) { onMessage(error instanceof Error ? error.message : "配置保存失败"); }
+      const message = formatRuntimeConfigSaved(saved.version);
+      setFeedback({ tone: "success", message });
+      onMessage(message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "配置保存失败";
+      setFeedback({ tone: "error", message });
+      onMessage(message);
+    }
     finally { setSaving(false); }
   };
 
   const testModel = async () => {
+    setTestingModel(true);
+    setFeedback({ tone: "info", message: "Testing model connection..." });
     try {
       const result = await testRuntimeModel({ model: { provider: config.model.provider, model_name: config.model.model_name, base_url: config.model.base_url, request_timeout: config.model.request_timeout }, ...(apiKey ? { api_key: apiKey } : {}) });
-      onMessage(result.ok ? "Model connection succeeded." : `Model connection failed${result.status_code ? ` (${result.status_code})` : ""}.`);
-    } catch (error) { onMessage(error instanceof Error ? error.message : "模型测试失败"); }
+      const message = formatModelTestResult(result);
+      setFeedback({ tone: result.ok ? "success" : "error", message });
+      onMessage(message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "模型测试失败";
+      setFeedback({ tone: "error", message });
+      onMessage(message);
+    }
+    finally { setTestingModel(false); }
   };
 
   const editAgent = (agentId: string, field: string, value: string | number) => {
@@ -100,22 +132,37 @@ export function ControlPanel({ onMessage }: { onMessage: (message: string) => vo
     try {
       const input = { ...server, expected_version: config.version };
       const saved = config.mcp_servers.some((item) => item.id === server.id) ? await updateMcpServer(server.id, input) : await addMcpServer(input);
-      setConfig(saved); setServers(saved.mcp_servers); onMessage(`MCP ${server.id} saved.`);
-    } catch (error) { onMessage(error instanceof Error ? error.message : "MCP 保存失败"); }
+      setConfig(saved); setServers(saved.mcp_servers);
+      const message = `MCP ${server.id} saved.`;
+      setFeedback({ tone: "success", message });
+      onMessage(message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "MCP 保存失败";
+      setFeedback({ tone: "error", message });
+      onMessage(message);
+    }
   };
 
   const removeServer = async (server: McpServerRuntimeConfig) => {
     try {
       const saved = await deleteMcpServer(server.id, config.version);
-      setConfig(saved); setServers(saved.mcp_servers); onMessage(`MCP ${server.id} removed.`);
-    } catch (error) { onMessage(error instanceof Error ? error.message : "MCP 删除失败"); }
+      setConfig(saved); setServers(saved.mcp_servers);
+      const message = `MCP ${server.id} removed.`;
+      setFeedback({ tone: "success", message });
+      onMessage(message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "MCP 删除失败";
+      setFeedback({ tone: "error", message });
+      onMessage(message);
+    }
   };
 
   return (
     <section className="panel control-panel">
       <div className="panel-heading"><span>Runtime control</span><span className="muted">version {config.version}</span></div>
+      {feedback && <p className={`control-feedback ${feedback.tone}`} role={feedback.tone === "error" ? "alert" : "status"}>{feedback.message}</p>}
       <div className="control-section">
-        <div className="control-section-heading"><strong>Model provider</strong><button className="quiet-button" type="button" onClick={() => void testModel()}>Test connection</button></div>
+        <div className="control-section-heading"><strong>Model provider</strong><button className="quiet-button" type="button" onClick={() => void testModel()} disabled={testingModel}>{testingModel ? "Testing..." : "Test connection"}</button></div>
         <div className="control-grid">
           <label>Provider<select value={config.model.provider} onChange={(event) => updateModel("provider", event.target.value)}><option value="mock">mock</option><option value="openai-compatible">openai-compatible</option></select></label>
           <label>Model name<input value={config.model.model_name} onChange={(event) => updateModel("model_name", event.target.value)} /></label>

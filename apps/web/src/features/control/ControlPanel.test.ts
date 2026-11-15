@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildRuntimeConfigPayload, parseCsv } from "./ControlPanel";
+import { buildRuntimeConfigPayload, formatModelTestResult, formatRuntimeConfigSaved, parseCsv } from "./ControlPanel";
 
 describe("runtime control helpers", () => {
   it("normalizes comma separated policy fields", () => {
@@ -32,5 +32,14 @@ describe("runtime control helpers", () => {
     );
     expect(payload.api_key).toBe("new-secret");
     expect(JSON.stringify(payload)).not.toContain("********");
+  });
+
+  it("includes the model error returned by the connection test", () => {
+    expect(formatModelTestResult({ ok: false, status_code: 401, error: "invalid API key" }))
+      .toBe("Model connection failed (401): invalid API key.");
+  });
+
+  it("reports the version saved by the runtime config update", () => {
+    expect(formatRuntimeConfigSaved(7)).toBe("Runtime config v7 saved.");
   });
 });
