@@ -15,6 +15,20 @@ The web workbench is available at `http://127.0.0.1:5173` and the control-plane 
 
 The Workbench `Model output` panel shows the final content returned by the complete delegation chain. For example, when the calculator MCP tool returns `15`, the panel shows `15` instead of an intermediate `delegate` or `mcp_call` decision. The event timeline defaults to key events and hides duplicate-looking intermediate A2A relay responses; switch to `All events` to inspect the complete protocol evidence. Model requests expose only safe metadata; full prompts and API keys are never shown in the panel or event stream.
 
+## Remote deployment
+
+Ubuntu 22.04 can run the same stack with Docker Engine and the Compose plugin. For access through the server's IP, set `LAB_BIND_HOST=0.0.0.0` in the server's `.env` and open `http://SERVER_IP:5173`. The browser uses same-origin `/api` requests; Nginx in the web container proxies them to `control-plane:8000`, with response buffering disabled for SSE and a long read timeout for delegated tasks. Browser access does not require opening port 8000 or adding a server-specific CORS origin. `LAB_BIND_HOST` controls both published ports, so restrict external access to port 8000 through the server's security group. The control console has no built-in login; use an SSH tunnel, source restrictions, or an authenticated reverse proxy.
+
+For an existing deployment, rebuild the web container to replace the old JavaScript and add the proxy:
+
+```bash
+git pull --ff-only
+docker compose up -d --build --no-deps web
+curl -i http://127.0.0.1:5173/api/v1/scenarios
+```
+
+The last request should return a JSON array, not the SPA's HTML. With legacy Compose, use `docker-compose` instead. Refresh the browser with `Ctrl+F5` after rebuilding. Leave `VITE_CONTROL_PLANE_URL` unset for the default same-origin setup; remove any old frontend build override pointing at `127.0.0.1:8000`. Local `npm run dev` uses Vite's `/api` proxy to the local backend on port 8000. Match `MCP_FILE_WRITER_UID`/`MCP_FILE_WRITER_GID` to the fixture directory's owner, and set `CONFIG_ENCRYPTION_KEY` before saving model API keys in the console.
+
 The `Control` view in the web workbench is a runtime configuration console. It changes the model provider/name/base URL, applies explicit API-key preserve/replace/clear actions, edits root/worker policy allowlists, and manages MCP proxy registrations without restarting Compose. MCP registration is a gateway proxy entry; it does not create or remove containers.
 
 Runtime API keys are encrypted at rest. Generate a Fernet key and set it in `.env` before replacing a key:

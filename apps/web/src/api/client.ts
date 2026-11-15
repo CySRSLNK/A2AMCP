@@ -121,7 +121,9 @@ export interface AttackCase extends AttackSummary {
 
 export type AttackPlan = AttackCase & { plan_mode: "read-only" };
 
-export const API_BASE = (import.meta.env.VITE_CONTROL_PLANE_URL as string | undefined) ?? "http://127.0.0.1:8000";
+export const API_BASE = (
+  (import.meta.env.VITE_CONTROL_PLANE_URL as string | undefined) ?? ""
+).replace(/\/+$/, "");
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {

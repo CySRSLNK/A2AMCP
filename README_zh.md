@@ -81,6 +81,30 @@ docker compose up --build -d
 
 Workbench 中的 `Model output` 面板会显示整条委派链最终返回的内容。例如调用 calculator 得到 `15` 时，面板显示 `15`，而不是中间模型的 `delegate` 或 `mcp_call` 决策。事件时间线默认隐藏中间 Agent 转发产生的重复 A2A response；切换 `All events` 可以查看完整协议证据。模型请求只记录安全元数据；完整提示词和 API Key 不会显示在面板或事件中。
 
+## Ubuntu 22.04 与远程访问
+
+Ubuntu 22.04 安装 Docker Engine 和 Compose 插件后，可以使用相同的 Compose 配置。模型通过远程 API 调用时，服务器无需 GPU。
+
+通过服务器 IP 访问时，在服务器的 `.env` 中设置：
+
+```dotenv
+LAB_BIND_HOST=0.0.0.0
+```
+
+然后启动服务，浏览器打开 `http://服务器IP:5173`。前端默认使用同源 `/api`，Web 容器中的 Nginx 将请求转发到 `control-plane:8000`；SSE 事件流关闭代理缓冲，并允许长任务等待。浏览器无需直接连接 8000 端口，也无需单独配置服务器 IP 的 CORS。`LAB_BIND_HOST` 同时影响 Web 和 API 的宿主机绑定，服务器安全组可限制 8000 的外部访问。控制后台没有内置登录认证，应通过 SSH 隧道、访问来源限制或带认证的反向代理访问。
+
+写文件 MCP 的 `MCP_FILE_WRITER_UID`、`MCP_FILE_WRITER_GID` 应与 `fixtures/file-writer` 目录所有者一致；使用前端保存模型 Key 前，须设置下文的 `CONFIG_ENCRYPTION_KEY`。
+
+从旧版本更新前端连接修复时，在服务器仓库目录执行：
+
+```bash
+git pull --ff-only
+docker compose up -d --build --no-deps web
+curl -i http://127.0.0.1:5173/api/v1/scenarios
+```
+
+最后一个请求应返回 JSON 数组；如果返回 HTML，说明仍在运行旧的 Web 镜像或代理配置。旧版 Compose 将 `docker compose` 替换为 `docker-compose`。更新后使用 `Ctrl+F5` 刷新页面；仅重启容器不会重新编译旧的 JS。默认无需设置 `VITE_CONTROL_PLANE_URL`，已有的前端构建配置若指向 `127.0.0.1:8000`，应移除该覆盖并重新构建。前端本地开发的 `npm run dev` 也会通过 Vite 将 `/api` 转发到本机 8000 端口。
+
 ## 运行时控制后台
 
 打开 Web 工作台右上角的 `Control` 页面，可以在不重启 Compose 的情况下修改后续运行使用的模型和 MCP 代理注册：
