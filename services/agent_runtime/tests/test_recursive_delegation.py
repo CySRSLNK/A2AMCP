@@ -40,7 +40,11 @@ class FakeMcpClient:
 
 
 class SequenceMcpClient:
+    def __init__(self):
+        self.contexts = []
+
     async def call_tool(self, context, server_id, name, arguments):
+        self.contexts.append((context, server_id, name, arguments))
         if name == "calculator":
             return {"content": [{"type": "text", "text": "48"}]}
         return {
@@ -248,6 +252,102 @@ def test_agent_continues_after_mcp_call_until_model_answers():
     model_events = [event for event in events if event.protocol == "model"]
     assert len(model_events) == 6
     assert len({event.source_event_key for event in model_events}) == 6
+
+
+def test_mcp_decision_with_null_arguments_uses_empty_arguments():
+    mcp = FakeMcpClient()
+    runtime = AgentRuntime(
+        agent_id="worker-agent",
+        model=ScriptedModel(
+            [
+                {
+                    "action": "mcp_call",
+                    "server_id": "mcp-tools",
+                    "tool_name": "calculator",
+                    "arguments": None,
+                    "summary": "calculate",
+                },
+                {"action": "answer", "summary": "done"},
+            ]
+        ),
+        a2a_client=None,
+        mcp_client=mcp,
+    )
+
+    result = asyncio.run(
+        runtime.handle_task(TaskInput(run_id=uuid4(), prompt="calculate", agent_id="worker-agent"))
+    )
+
+    assert result.status == "completed"
+    assert mcp.contexts[0][3] == {}
+
+
+def test_delegation_preserves_completed_tool_results_for_worker():
+    mcp = SequenceMcpClient()
+    worker = AgentRuntime(
+        agent_id="worker-agent",
+        model=ScriptedModel(
+            [
+                {
+                    "action": "mcp_call",
+                    "server_id": "mcp-file-reader",
+                    "tool_name": "read_file",
+                    "arguments": {"path": "example.txt"},
+                    "summary": "read the file",
+                },
+                {"action": "answer", "summary": "48\nexample file contents"},
+            ]
+        ),
+        a2a_client=None,
+        mcp_client=mcp,
+        allowed_mcp_servers={"mcp-tools", "mcp-file-reader"},
+        allowed_tools={"calculator", "read_file"},
+    )
+    root = AgentRuntime(
+        agent_id="root-agent",
+        model=ScriptedModel(
+            [
+                {
+                    "action": "mcp_call",
+                    "server_id": "mcp-tools",
+                    "tool_name": "calculator",
+                    "arguments": {"operation": "multiply", "a": 6, "b": 8},
+                    "summary": "calculate first",
+                },
+                {
+                    "action": "delegate",
+                    "target_agent": "worker-agent",
+                    "summary": "read the remaining file",
+                },
+            ]
+        ),
+        a2a_client=None,
+        mcp_client=mcp,
+        allowed_targets={"worker-agent"},
+        allowed_mcp_servers={"mcp-tools", "mcp-file-reader"},
+        allowed_tools={"calculator"},
+    )
+    client = FakeA2AClient({"root-agent": root, "worker-agent": worker})
+    root.a2a_client = client
+    worker.a2a_client = client
+
+    result = asyncio.run(
+        root.handle_task(
+            TaskInput(
+                run_id=uuid4(),
+                prompt="调用工具计算6*8并且读取文件example.txt",
+                agent_id="root-agent",
+            )
+        )
+    )
+
+    assert result.status == "completed"
+    assert len(client.calls) == 1
+    completed = client.calls[0][1].completed_tool_results
+    assert len(completed) == 1
+    assert completed[0]["tool_name"] == "calculator"
+    assert completed[0]["result"]["content"][0]["text"] == "48"
+    assert [context.agent_id for context, *_ in mcp.contexts] == ["root-agent", "worker-agent"]
 
 
 def test_worker_accepts_compatible_model_decision_field_names():

@@ -115,4 +115,30 @@ def test_toolless_agent_prompt_requires_delegation_for_tool_requests():
     system_message = model.requests[0].messages[0]["content"]
     assert "choose mcp_call instead of answering" in system_message
     assert "delegate the original task" in system_message
-    assert "root agent should delegate file and tool requests" in system_message
+
+
+def test_agent_prompt_uses_allowed_tools_before_delegating_unavailable_work():
+    model = ScriptedModel()
+    runtime = AgentRuntime(
+        agent_id="root-agent",
+        model=model,
+        a2a_client=None,
+        allowed_targets={"worker-agent"},
+        allowed_tools={"calculator"},
+    )
+
+    asyncio.run(
+        runtime.handle_task(
+            TaskInput(
+                run_id="44444444-4444-4444-4444-444444444444",
+                prompt="调用 calculator 计算 6*8，并读取 example.txt",
+                agent_id="root-agent",
+            )
+        )
+    )
+
+    system_message = model.requests[0].messages[0]["content"]
+    assert "Use an allowed tool directly" in system_message
+    assert "Do not delegate an operation merely because another agent also has it" in system_message
+    assert "delegate only the remaining unsupported work" in system_message
+    assert "root agent should delegate file and tool requests" not in system_message

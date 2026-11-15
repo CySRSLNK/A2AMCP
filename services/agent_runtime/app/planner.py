@@ -23,6 +23,7 @@ class TaskInput(BaseModel):
     delegation_edges: list[str] = Field(default_factory=list)
     policy: dict[str, Any] = Field(default_factory=dict)
     runtime_config: dict[str, Any] = Field(default_factory=dict)
+    completed_tool_results: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class AgentDecision(BaseModel):
@@ -58,6 +59,8 @@ def _normalize_model_decision(output: dict[str, Any]) -> dict[str, Any]:
     for canonical, alias in aliases.items():
         if canonical not in normalized and alias in normalized:
             normalized[canonical] = normalized.pop(alias)
+    if normalized.get("arguments") is None:
+        normalized["arguments"] = {}
     return normalized
 
 
@@ -151,7 +154,7 @@ class AgentRuntime:
         if task.delegation_edges.count(f"{self.agent_id}->{self.agent_id}") > 1:
             return TaskResult(status="blocked", summary="repeated delegation edge detected")
         model_config = self._model_config(task)
-        tool_history: list[dict[str, Any]] = []
+        tool_history: list[dict[str, Any]] = [*task.completed_tool_results]
         for tool_step in range(self.max_tool_steps + 1):
             context = CorrelationContext(
                 run_id=task.run_id,
@@ -233,6 +236,7 @@ class AgentRuntime:
                     "parent_task_id": task.task_id,
                     "hop": task.hop + 1,
                     "delegation_edges": [*task.delegation_edges, edge],
+                    "completed_tool_results": tool_history,
                 }
             )
             try:
@@ -469,10 +473,13 @@ class AgentRuntime:
             "Do not use aliases such as type, server, or tool. "
             "Never invent targets, servers, tools, credentials, or network destinations. "
             "When an allowed tool matches the requested operation, choose mcp_call instead of answering with instructions. "
+            "Use an allowed tool directly before delegating unsupported work. "
+            "Do not delegate an operation merely because another agent also has it. "
             "If the task requests an MCP or tool operation that is not in your allowed tool list, "
-            "do not answer with a permission explanation. If an allowed target agent exists, "
-            "delegate the original task to it so that agent can decide how to continue. "
-            "The root agent should delegate file and tool requests to worker-agent instead of answering about its own empty tool list. "
+            "first complete any supported operations. Then delegate only the remaining unsupported work. "
+            "When delegating after a tool call, treat completed tool results as already done and do not repeat them. "
+            "If no supported operation remains and an allowed target agent exists, delegate the original task to it "
+            "so that agent can decide how to continue instead of answering with a permission explanation. "
             "Return a concise summary in the summary field."
         )
         messages = [
