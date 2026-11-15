@@ -8,7 +8,7 @@ import { InspectorPanel } from "./features/runs/InspectorPanel";
 import { TopologyPanel } from "./features/runs/TopologyPanel";
 import { ReplayControls } from "./features/replay/ReplayControls";
 import { ScenarioForm } from "./features/scenarios/ScenarioForm";
-import { AttackCatalogPanel } from "./features/attacks/AttackCatalogPanel";
+import { AttackCatalogPanel, type AttackProtocolFilter } from "./features/attacks/AttackCatalogPanel";
 import "./styles.css";
 
 function App() {
@@ -24,6 +24,7 @@ function App() {
   const [selectedAttackId, setSelectedAttackId] = useState("");
   const [attackPlan, setAttackPlan] = useState<AttackPlan>();
   const [attackLoading, setAttackLoading] = useState(false);
+  const [attackProtocol, setAttackProtocol] = useState<AttackProtocolFilter>("all");
 
   useEffect(() => {
     listScenarios().then(setScenarios).catch(() => setMessage("Control plane is offline. Seed a scenario after starting it."));
@@ -90,7 +91,7 @@ function App() {
         <label className="prompt-field" htmlFor="prompt"><span>Operator prompt</span><textarea id="prompt" rows={2} value={prompt} onChange={(event) => setPrompt(event.target.value)} disabled={busy} /></label>
         <button className="primary-button" type="button" onClick={start} disabled={busy}>{busy ? "Working..." : "Start mediated run"}</button>
       </section>
-      <AttackCatalogPanel attacks={attacks} selectedId={selectedAttackId} plan={attackPlan} loading={attackLoading} onSelect={setSelectedAttackId} />
+      <AttackCatalogPanel attacks={attacks} selectedId={selectedAttackId} plan={attackPlan} loading={attackLoading} onSelect={setSelectedAttackId} protocolFilter={attackProtocol} onProtocolFilterChange={setAttackProtocol} />
       <p className="system-message" role="status">{message}</p>
       <div className="workspace-grid">
         <div className="main-column"><TopologyPanel run={run} /><EventTimeline events={events} selected={selectedEvent?.event_id} onSelect={setSelectedEvent} /></div>

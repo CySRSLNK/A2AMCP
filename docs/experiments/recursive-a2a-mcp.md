@@ -12,4 +12,6 @@ Replay creates a new logical run from retained response bodies. A missing or red
 
 The local attack catalog is stored in `scenarios/attack-catalog.yaml`. It contains cross-MCP and A2A-to-MCP cases with source identifiers, typed event expectations, local fixture status, and detection oracles. `scripts/list-attacks.sh` and the web workbench read the catalog through the control-plane API. Catalog plans are read-only; descriptive-only cases are not claims that the current fixed topology can execute or verify the attack.
 
+Event expectations use the lab's observable contract: A2A request events are named `message/send.request`, and `actor` is the `CorrelationContext.agent_id` that emitted the gateway event. `target` records the route selected by the proxy, so a runnable chain starts with `control-plane -> root-agent` before delegated agent hops.
+
 The current MVP captures mediated protocol traffic. Unsupported A2A operations and direct-mode traffic are intentionally outside the complete capture path; use mediated mode when collecting evidence for a security finding.

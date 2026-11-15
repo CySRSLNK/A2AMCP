@@ -28,7 +28,7 @@ h1 { margin: 0; font-size: clamp(28px, 4vw, 48px); line-height: 1; letter-spacin
 .attack-facts div { min-width: 0; border-top: 1px solid #202b35; padding-top: 9px; }.attack-facts dt { color: #718292; font-size: 10px; }.attack-facts dd { margin: 5px 0 0; overflow: hidden; color: #d7e0e8; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .attack-section { margin-top: 15px; }.attack-section-title { color: #aeb9c5; font-size: 11px; font-weight: 750; text-transform: uppercase; letter-spacing: .08em; }
 .attack-events { display: grid; gap: 7px; margin: 9px 0 0; padding-left: 20px; color: #bfcbd6; font-size: 11px; }.attack-events li { padding-left: 4px; }.attack-events small { margin-left: 7px; color: #caa868; text-transform: uppercase; }
-.attack-oracle, .attack-sources { margin: 8px 0 0; color: #8fa0af; font-size: 11px; line-height: 1.5; }.attack-empty { padding: 18px 16px; }
+.attack-prerequisites, .attack-oracle, .attack-sources { margin: 8px 0 0; color: #8fa0af; font-size: 11px; line-height: 1.5; }.attack-empty { padding: 18px 16px; }
 .scenario-form, .prompt-field { display: grid; gap: 7px; color: #aeb9c5; font-size: 12px; font-weight: 650; }
 select, textarea { width: 100%; border: 1px solid #394958; border-radius: 5px; background: #0c1218; color: #edf2f7; padding: 10px 11px; outline: none; }
 textarea { min-height: 57px; resize: vertical; line-height: 1.4; }

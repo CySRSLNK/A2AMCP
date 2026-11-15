@@ -27,7 +27,7 @@ def valid_case(**overrides):
         "expected_events": [
             {
                 "protocol": "a2a",
-                "operation": "message/send",
+                "operation": "message/send.request",
                 "direction": "outbound",
                 "actor": "root-agent",
                 "target": "worker-agent",
@@ -84,8 +84,29 @@ def test_loader_rejects_non_local_fixture():
 def test_loader_rejects_external_url_or_command_text():
     with pytest.raises(ValueError, match="unsafe attack catalog text"):
         AttackCatalogLoader().load(
-            {"version": 1, "cases": [valid_case(dry_run_prompt="curl https://example.test")]} 
+            {"version": 1, "cases": [valid_case(dry_run_prompt="curl https://example.test")]}
         )
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda case: case["preconditions"]["required_policy"].update(
+            {"destination": "https://evil.test"}
+        ),
+        lambda case: case["expected_events"][0].update({"target": "file:///etc/passwd"}),
+        lambda case: case["expected_events"][0].update({"operation": "bash -c id"}),
+        lambda case: case.update({"dry_run_prompt": "python -c 'print(1)'"}),
+        lambda case: case.update({"dry_run_prompt": "javascript:alert(1)"}),
+        lambda case: case.update({"dry_run_prompt": "nc 10.0.0.1 80"}),
+    ],
+)
+def test_loader_rejects_unsafe_nested_text(mutate):
+    case = valid_case()
+    mutate(case)
+
+    with pytest.raises(ValueError, match="unsafe attack catalog text"):
+        AttackCatalogLoader().load({"version": 1, "cases": [case]})
 
 
 def test_loader_rejects_malformed_event_expectation():

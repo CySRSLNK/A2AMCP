@@ -3,11 +3,18 @@ import type { AttackEventExpectation, AttackPlan, AttackSummary } from "../../ap
 export function formatAttackEvent(event: AttackEventExpectation): string {
   const actor = event.actor ?? "unknown actor";
   const target = event.target ? ` -> ${event.target}` : "";
-  return `${event.protocol.toUpperCase()} · ${event.operation} · ${actor}${target}`;
+  const count = event.min_count > 1 ? ` ×${event.min_count}` : "";
+  return `${event.protocol.toUpperCase()} · ${event.operation} · ${event.direction} · ${actor}${target}${count}`;
 }
 
 export function getAttackAvailability(attack: Pick<AttackSummary, "runnable" | "fixture_scenario_id">): string {
   return attack.runnable && attack.fixture_scenario_id ? "local fixture" : "descriptive-only";
+}
+
+export type AttackProtocolFilter = "all" | AttackSummary["protocol_path"];
+
+export function filterAttacksByProtocol(attacks: AttackSummary[], filter: AttackProtocolFilter): AttackSummary[] {
+  return filter === "all" ? attacks : attacks.filter((attack) => attack.protocol_path === filter);
 }
 
 type Props = {
@@ -16,9 +23,14 @@ type Props = {
   plan?: AttackPlan;
   loading?: boolean;
   onSelect: (attackId: string) => void;
+  protocolFilter: AttackProtocolFilter;
+  onProtocolFilterChange: (filter: AttackProtocolFilter) => void;
 };
 
-export function AttackCatalogPanel({ attacks, selectedId, plan, loading, onSelect }: Props) {
+export function AttackCatalogPanel({ attacks, selectedId, plan, loading, onSelect, protocolFilter, onProtocolFilterChange }: Props) {
+  const filteredAttacks = filterAttacksByProtocol(attacks, protocolFilter);
+  const visiblePlan = filteredAttacks.some((attack) => attack.id === selectedId) ? plan : undefined;
+
   return (
     <section className="panel attack-panel">
       <div className="panel-heading">
@@ -26,46 +38,66 @@ export function AttackCatalogPanel({ attacks, selectedId, plan, loading, onSelec
         <span className="muted">read-only plan</span>
       </div>
       <div className="attack-picker">
+        <label htmlFor="attack-protocol">Path</label>
+        <select
+          id="attack-protocol"
+          value={protocolFilter}
+          onChange={(event) => onProtocolFilterChange(event.target.value as AttackProtocolFilter)}
+          disabled={loading}
+        >
+          <option value="all">All protocol paths</option>
+          <option value="cross-mcp">Cross-MCP</option>
+          <option value="a2a-mcp">A2A to MCP</option>
+        </select>
         <label htmlFor="attack-case">Case</label>
         <select
           id="attack-case"
-          value={selectedId}
+          value={filteredAttacks.some((attack) => attack.id === selectedId) ? selectedId : ""}
           onChange={(event) => onSelect(event.target.value)}
-          disabled={loading || attacks.length === 0}
+          disabled={loading || filteredAttacks.length === 0}
         >
           <option value="">Select an attack case</option>
-          {attacks.map((attack) => (
+          {filteredAttacks.map((attack) => (
             <option key={`${attack.id}@${attack.version}`} value={attack.id}>
               {attack.id} · {attack.title}
             </option>
           ))}
         </select>
       </div>
-      {plan ? (
+      {visiblePlan ? (
         <div className="attack-detail">
           <div className="attack-detail-header">
             <div>
-              <strong>{plan.title}</strong>
-              <p>{plan.summary}</p>
+              <strong>{visiblePlan.title}</strong>
+              <p>{visiblePlan.summary}</p>
             </div>
-            <span className={`attack-badge ${plan.runnable ? "runnable" : "descriptive"}`}>
-              {getAttackAvailability(plan)}
+            <span className={`attack-badge ${visiblePlan.runnable ? "runnable" : "descriptive"}`}>
+              {getAttackAvailability(visiblePlan)}
             </span>
           </div>
           <div className="attack-meta">
-            <span>{plan.protocol_path}</span>
-            <span>{plan.category}</span>
-            <span>{plan.safe_fixture}</span>
+            <span>{visiblePlan.protocol_path}</span>
+            <span>{visiblePlan.category}</span>
+            <span>{visiblePlan.safe_fixture}</span>
           </div>
           <dl className="attack-facts">
-            <div><dt>Injection point</dt><dd>{plan.injection_point.component}</dd></div>
-            <div><dt>Trust boundary</dt><dd>{plan.injection_point.trust_boundary}</dd></div>
-            <div><dt>Impact</dt><dd>{plan.impact}</dd></div>
+            <div><dt>Injection point</dt><dd>{visiblePlan.injection_point.component}</dd></div>
+            <div><dt>Trust boundary</dt><dd>{visiblePlan.injection_point.trust_boundary}</dd></div>
+            <div><dt>Impact</dt><dd>{visiblePlan.impact}</dd></div>
           </dl>
+          <div className="attack-section">
+            <span className="attack-section-title">Prerequisites</span>
+            <p className="attack-prerequisites">
+              Agents: {visiblePlan.preconditions.required_agents.join(" · ") || "none"}<br />
+              MCP servers: {visiblePlan.preconditions.required_mcp_servers.join(" · ") || "none"}<br />
+              Capabilities: {visiblePlan.preconditions.required_capabilities.join(" · ") || "none"}<br />
+              Policy: {Object.keys(visiblePlan.preconditions.required_policy).length > 0 ? JSON.stringify(visiblePlan.preconditions.required_policy) : "none"}
+            </p>
+          </div>
           <div className="attack-section">
             <span className="attack-section-title">Expected events</span>
             <ol className="attack-events">
-              {plan.expected_events.map((event, index) => (
+              {visiblePlan.expected_events.map((event, index) => (
                 <li key={`${event.protocol}-${event.operation}-${index}`}>
                   <span>{formatAttackEvent(event)}</span>
                   {event.relation === "optional" ? <small>optional</small> : null}
@@ -75,11 +107,11 @@ export function AttackCatalogPanel({ attacks, selectedId, plan, loading, onSelec
           </div>
           <div className="attack-section">
             <span className="attack-section-title">Oracle</span>
-            <p className="attack-oracle">{plan.oracle.observable.join(" ")}</p>
+            <p className="attack-oracle">{visiblePlan.oracle.observable.join(" ")}</p>
           </div>
           <div className="attack-section">
             <span className="attack-section-title">Sources</span>
-            <p className="attack-sources">{plan.sources.map((source) => source.id).join(" · ")}</p>
+            <p className="attack-sources">{visiblePlan.sources.map((source) => source.id).join(" · ")}</p>
           </div>
         </div>
       ) : (

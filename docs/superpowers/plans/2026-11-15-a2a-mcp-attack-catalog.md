@@ -209,7 +209,7 @@ git commit -m "feat: browse attack catalog in workbench"
 - Modify: `README.md`
 - Modify: `docs/experiments/recursive-a2a-mcp.md`
 - Create: `scripts/list-attacks.sh`
-- Create: `tests/smoke/test_attack_catalog.py`
+- Create: `tests/smoke/test_attack_catalog_contract.py`
 
 - [ ] **Step 1: Write failing smoke/documentation contract tests**
 
@@ -220,7 +220,7 @@ def test_list_attacks_script_uses_read_only_api(): ...
 
 - [ ] **Step 2: Run focused tests and verify they fail**
 
-Run: `pytest tests/smoke/test_attack_catalog.py -q`
+Run: `pytest tests/smoke/test_attack_catalog_contract.py -q`
 
 Expected: FAIL because the script and documentation contract do not exist.
 
@@ -230,7 +230,7 @@ Document the catalog files, API endpoints, version selection, dry-run semantics,
 
 - [ ] **Step 4: Run the focused test and the complete suites**
 
-Run: `pytest tests/smoke/test_attack_catalog.py -q`
+Run: `pytest tests/smoke/test_attack_catalog_contract.py -q`
 
 Expected: PASS.
 
@@ -245,6 +245,6 @@ Expected: PASS for frontend tests and TypeScript/Vite build.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add README.md docs/experiments/recursive-a2a-mcp.md scripts/list-attacks.sh tests/smoke/test_attack_catalog.py
+git add README.md docs/experiments/recursive-a2a-mcp.md scripts/list-attacks.sh tests/smoke/test_attack_catalog_contract.py
 git commit -m "docs: document local attack catalog"
 ```

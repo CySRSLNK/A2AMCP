@@ -2,6 +2,7 @@ import asyncio
 from pathlib import Path
 
 import httpx
+import pytest
 
 from services.control_plane.app.events import EventStore
 from services.control_plane.app.main import create_app
@@ -65,4 +66,23 @@ def test_explicit_case_version_is_stable(tmp_path: Path):
 
     assert response.status_code == 200
     assert response.json()["version"] == 1
+
+
+def test_missing_attack_catalog_fails_with_actionable_error(tmp_path: Path):
+    with pytest.raises(RuntimeError, match="attack catalog is unavailable"):
+        create_app(
+            store=EventStore(f"sqlite:///{tmp_path / 'events.db'}"),
+            attack_catalog_path=tmp_path / "missing.yaml",
+        )
+
+
+def test_malformed_attack_catalog_fails_with_actionable_error(tmp_path: Path):
+    path = tmp_path / "invalid.yaml"
+    path.write_text("cases: [", encoding="utf-8")
+
+    with pytest.raises(RuntimeError, match="attack catalog is invalid YAML"):
+        create_app(
+            store=EventStore(f"sqlite:///{tmp_path / 'events.db'}"),
+            attack_catalog_path=path,
+        )
 

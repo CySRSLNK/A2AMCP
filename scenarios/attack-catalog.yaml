@@ -207,7 +207,7 @@ cases:
       input_kind: metadata
     expected_events:
       - protocol: a2a
-        operation: message/send
+        operation: message/send.request
         direction: outbound
         actor: root-agent
         target: worker-agent
@@ -247,7 +247,7 @@ cases:
       input_kind: message
     expected_events:
       - protocol: a2a
-        operation: message/send
+        operation: message/send.request
         direction: outbound
         actor: root-agent
         target: worker-agent
@@ -287,7 +287,7 @@ cases:
       input_kind: task_state
     expected_events:
       - protocol: a2a
-        operation: message/send
+        operation: message/send.request
         direction: outbound
         actor: root-agent
         target: worker-agent
@@ -326,7 +326,7 @@ cases:
       input_kind: artifact
     expected_events:
       - protocol: a2a
-        operation: message/send
+        operation: message/send.request
         direction: outbound
         actor: root-agent
         target: worker-agent
@@ -370,12 +370,17 @@ cases:
       input_kind: task_state
     expected_events:
       - protocol: a2a
-        operation: message/send
+        operation: message/send.request
+        direction: outbound
+        actor: control-plane
+        target: root-agent
+      - protocol: a2a
+        operation: message/send.request
         direction: outbound
         actor: root-agent
         target: worker-agent
       - protocol: a2a
-        operation: message/send
+        operation: message/send.request
         direction: outbound
         actor: worker-agent
         target: worker-agent
@@ -415,7 +420,7 @@ cases:
       input_kind: message
     expected_events:
       - protocol: a2a
-        operation: message/send
+        operation: message/send.request
         direction: outbound
         actor: root-agent
         target: worker-agent

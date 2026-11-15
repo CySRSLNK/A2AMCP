@@ -20,4 +20,3 @@ def test_list_attacks_script_uses_read_only_api():
     assert "/api/v1/attacks" in script
     assert "-X POST" not in script
     assert "/api/v1/runs" not in script
-

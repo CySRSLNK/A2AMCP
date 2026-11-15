@@ -48,9 +48,11 @@ def _load_attack_catalog(
         return
     catalog_path = Path(path or os.getenv("ATTACK_CATALOG_PATH", _default_attack_catalog_path()))
     try:
-        loaded = yaml.safe_load(catalog_path.read_text())
+        loaded = yaml.safe_load(catalog_path.read_text(encoding="utf-8"))
     except OSError as exc:
         raise RuntimeError(f"attack catalog is unavailable: {catalog_path}") from exc
+    except yaml.YAMLError as exc:
+        raise RuntimeError(f"attack catalog is invalid YAML: {catalog_path}") from exc
     try:
         registry.import_document(loaded)
     except ValueError as exc:

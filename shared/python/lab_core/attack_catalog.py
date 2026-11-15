@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterator
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -14,9 +15,26 @@ ExpectedDecision = Literal["allow", "deny", "approval_required", "descriptive"]
 _UNSAFE_TEXT_PATTERNS = (
     re.compile(r"\b(?:https?|ftp|file)://", re.IGNORECASE),
     re.compile(r"\b(?:rm\s+-rf|curl\s|wget\s|bash\s+-c|sh\s+-c|powershell(?:\.exe)?\s)", re.IGNORECASE),
+    re.compile(r"\b(?:python(?:3)?|node)\s+-c\b", re.IGNORECASE),
+    re.compile(r"\b(?:nc|netcat)\s+(?:\d{1,3}\.){3}\d{1,3}\b", re.IGNORECASE),
+    re.compile(r"\b(?:javascript|data):", re.IGNORECASE),
     re.compile(r"\bBearer\s+[A-Za-z0-9._-]+", re.IGNORECASE),
     re.compile(r"\b(?:api[_-]?key|password|secret)\s*[:=]", re.IGNORECASE),
 )
+
+
+def _iter_text(value: Any) -> Iterator[str]:
+    if isinstance(value, str):
+        yield value
+        return
+    if isinstance(value, dict):
+        for key, item in value.items():
+            yield from _iter_text(key)
+            yield from _iter_text(item)
+        return
+    if isinstance(value, list):
+        for item in value:
+            yield from _iter_text(item)
 
 
 class SourceRef(BaseModel):
@@ -135,17 +153,7 @@ class AttackCatalogLoader:
         return catalog
 
     def _validate_text(self, case: AttackCase) -> None:
-        values: list[str] = [
-            case.title,
-            case.summary,
-            case.impact,
-            case.dry_run_prompt,
-            *case.mitigations,
-            *case.notes,
-            *case.oracle.observable,
-            case.injection_point.trust_boundary,
-        ]
-        for value in values:
+        for value in _iter_text(case.model_dump(mode="json")):
             if any(pattern.search(value) for pattern in _UNSAFE_TEXT_PATTERNS):
                 raise ValueError(f"unsafe attack catalog text in {case.id}")
 
