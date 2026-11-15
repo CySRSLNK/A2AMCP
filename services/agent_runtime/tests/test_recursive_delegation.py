@@ -9,8 +9,10 @@ from services.agent_runtime.app.planner import AgentRuntime, TaskInput
 class ScriptedModel:
     def __init__(self, actions):
         self.actions = iter(actions)
+        self.requests = []
 
     async def complete(self, request):
+        self.requests.append(request)
         return ModelResponse(
             provider="test",
             model="scripted",
@@ -35,6 +37,17 @@ class FakeMcpClient:
     async def call_tool(self, context, server_id, name, arguments):
         self.contexts.append((context, server_id, name, arguments))
         return {"content": [{"type": "text", "text": "3"}]}
+
+
+class SequenceMcpClient:
+    async def call_tool(self, context, server_id, name, arguments):
+        if name == "calculator":
+            return {"content": [{"type": "text", "text": "48"}]}
+        return {
+            "content": [
+                {"type": "text", "text": "example file contents"},
+            ]
+        }
 
 
 def test_agent_card_declares_task_and_stream_capabilities():
@@ -170,7 +183,7 @@ def test_mcp_call_inherits_task_correlation_context():
                 "tool_name": "calculator",
                 "arguments": {"a": 1, "b": 2},
                 "summary": "calculate",
-            }]
+            }, {"action": "answer", "summary": "3"}]
         ),
         a2a_client=None,
         mcp_client=mcp,
@@ -186,6 +199,57 @@ def test_mcp_call_inherits_task_correlation_context():
     assert (server_id, name, arguments) == ("mcp-tools", "calculator", {"a": 1, "b": 2})
 
 
+def test_agent_continues_after_mcp_call_until_model_answers():
+    events = []
+    model = ScriptedModel(
+        [
+            {
+                "action": "mcp_call",
+                "server_id": "mcp-tools",
+                "tool_name": "calculator",
+                "arguments": {"operation": "multiply", "a": 6, "b": 8},
+                "summary": "calculate first",
+            },
+            {
+                "action": "mcp_call",
+                "server_id": "mcp-file-reader",
+                "tool_name": "read_file",
+                "arguments": {"path": "example.txt"},
+                "summary": "read the file next",
+            },
+            {"action": "answer", "summary": "48\nexample file contents"},
+        ]
+    )
+    runtime = AgentRuntime(
+        agent_id="worker-agent",
+        model=model,
+        a2a_client=None,
+        mcp_client=SequenceMcpClient(),
+        allowed_mcp_servers={"mcp-tools", "mcp-file-reader"},
+        allowed_tools={"calculator", "read_file"},
+        event_sink=events.append,
+    )
+
+    result = asyncio.run(
+        runtime.handle_task(
+            TaskInput(
+                run_id=uuid4(),
+                prompt="先计算 6*8，再读取 example.txt",
+                agent_id="worker-agent",
+            )
+        )
+    )
+
+    assert result.status == "completed"
+    assert result.summary == "48\nexample file contents"
+    assert len(model.requests) == 3
+    assert "48" in model.requests[1].messages[-1]["content"]
+    assert "example file contents" in model.requests[2].messages[-1]["content"]
+    model_events = [event for event in events if event.protocol == "model"]
+    assert len(model_events) == 6
+    assert len({event.source_event_key for event in model_events}) == 6
+
+
 def test_worker_accepts_compatible_model_decision_field_names():
     mcp = FakeMcpClient()
     runtime = AgentRuntime(
@@ -197,7 +261,7 @@ def test_worker_accepts_compatible_model_decision_field_names():
                 "tool": "calculator",
                 "arguments": {"a": 2, "b": 3},
                 "summary": "calculate",
-            }]
+            }, {"action": "answer", "summary": "3"}]
         ),
         a2a_client=None,
         mcp_client=mcp,

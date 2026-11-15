@@ -32,6 +32,7 @@ class MockModelAdapter:
     async def complete(self, request: ModelRequest) -> ModelResponse:
         role = request.metadata.get("role")
         hop = int(request.metadata.get("hop", 0))
+        tool_step = int(request.metadata.get("tool_step", 0))
         if role == "root":
             output = {
                 "action": "delegate",
@@ -44,7 +45,7 @@ class MockModelAdapter:
                 "target_agent": "worker-agent",
                 "summary": "Ask the worker hop to inspect the fixture resource.",
             }
-        elif role == "worker":
+        elif role == "worker" and tool_step == 0:
             output = {
                 "action": "mcp_call",
                 "server_id": "mcp-tools",
