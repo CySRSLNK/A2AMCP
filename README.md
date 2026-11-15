@@ -15,6 +15,31 @@ The web workbench is available at `http://127.0.0.1:5173` and the control-plane 
 
 The default services are local-only and use a deterministic mock model. External model providers are opt-in through `.env`; model calls still pass through the gateway when configured.
 
+To let a real OpenAI-compatible model decide whether to answer, delegate, or call an MCP tool, set `MODEL_PROVIDER=openai-compatible`, choose `MODEL_NAME`, and point `MODEL_BASE_URL` at a model service reachable from the gateway container:
+
+```dotenv
+MODEL_PROVIDER=openai-compatible
+MODEL_NAME=your-model
+MODEL_BASE_URL=http://model-service:8000
+MODEL_API_KEY=your-key
+```
+
+The model must return one JSON action. The agent runtime validates the action before execution:
+
+```json
+{"action":"delegate","target_agent":"worker-agent","summary":"Delegate the task for fixture inspection."}
+```
+
+```json
+{"action":"mcp_call","server_id":"mcp-tools","tool_name":"calculator","arguments":{"operation":"add","a":1,"b":2},"summary":"Calculate the result."}
+```
+
+```json
+{"action":"answer","summary":"The task is complete."}
+```
+
+The root agent is allowed to delegate to `worker-agent` and has no MCP tools by default. The worker agent can delegate recursively and use `calculator` or `fixture_http_get`. Invalid JSON, unknown agents, unknown MCP servers, disallowed tools, and excessive hop depth fail closed.
+
 The first run in the workbench loads `scenarios/recursive-a2a-mcp.yaml`, creates a mediated run, and displays A2A/MCP events in sequence. The terminal equivalent is:
 
 ```bash

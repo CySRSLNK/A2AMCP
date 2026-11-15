@@ -8,6 +8,22 @@ import httpx
 from shared.python.lab_core.contracts import ModelRequest, ModelResponse
 
 
+def _decode_decision(content: str) -> dict:
+    if not isinstance(content, str):
+        raise ValueError("model response content must be text")
+    text = content.strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        text = "\n".join(lines[1:-1]).strip()
+    try:
+        output = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError("model response is not valid JSON") from exc
+    if not isinstance(output, dict):
+        raise ValueError("model response must be a JSON object")
+    return output
+
+
 class ModelAdapter(Protocol):
     async def complete(self, request: ModelRequest) -> ModelResponse: ...
 
@@ -72,10 +88,7 @@ class OpenAICompatibleAdapter:
         response.raise_for_status()
         body = response.json()
         content = body["choices"][0]["message"]["content"]
-        try:
-            output = json.loads(content)
-        except json.JSONDecodeError:
-            output = {"action": "answer", "summary": content}
+        output = _decode_decision(content)
         return ModelResponse(
             provider="openai-compatible",
             model=body.get("model", request.model),

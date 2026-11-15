@@ -79,6 +79,11 @@ services:
       AGENT_ID: root-agent
       GATEWAY_BASE_URL: ${GATEWAY_BASE_URL:-http://gateway:8001}
       MODEL_PROVIDER: ${MODEL_PROVIDER:-mock}
+      MODEL_NAME: ${MODEL_NAME:-lab-agent}
+      AGENT_MAX_HOP: ${ROOT_AGENT_MAX_HOP:-8}
+      AGENT_ALLOWED_TARGETS: ${ROOT_AGENT_ALLOWED_TARGETS:-worker-agent}
+      AGENT_ALLOWED_MCP_SERVERS: ${ROOT_AGENT_ALLOWED_MCP_SERVERS:-mcp-tools,mcp-resources}
+      AGENT_ALLOWED_TOOLS: ${ROOT_AGENT_ALLOWED_TOOLS:-}
     depends_on:
       gateway:
         condition: service_started
@@ -100,6 +105,11 @@ services:
       AGENT_ID: worker-agent
       GATEWAY_BASE_URL: ${GATEWAY_BASE_URL:-http://gateway:8001}
       MODEL_PROVIDER: ${MODEL_PROVIDER:-mock}
+      MODEL_NAME: ${MODEL_NAME:-lab-agent}
+      AGENT_MAX_HOP: ${WORKER_AGENT_MAX_HOP:-8}
+      AGENT_ALLOWED_TARGETS: ${WORKER_AGENT_ALLOWED_TARGETS:-worker-agent}
+      AGENT_ALLOWED_MCP_SERVERS: ${WORKER_AGENT_ALLOWED_MCP_SERVERS:-mcp-tools,mcp-resources}
+      AGENT_ALLOWED_TOOLS: ${WORKER_AGENT_ALLOWED_TOOLS:-calculator,fixture_http_get}
     depends_on:
       gateway:
         condition: service_started

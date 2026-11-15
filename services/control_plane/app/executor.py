@@ -34,6 +34,11 @@ async def execute_run(
         "task_id": str(task_id),
         "hop": 0,
         "delegation_edges": [],
+        "policy": (
+            run_manager.get(run_id).policy.model_dump(mode="json")
+            if run_manager is not None and run_manager.get(run_id) is not None
+            else {}
+        ),
     }
     gateway = os.getenv("GATEWAY_BASE_URL", "http://127.0.0.1:8001").rstrip("/")
     try:

@@ -145,3 +145,61 @@ def test_mcp_call_inherits_task_correlation_context():
     assert context.task_id == task.task_id
     assert context.hop == 2
     assert (server_id, name, arguments) == ("mcp-tools", "calculator", {"a": 1, "b": 2})
+
+
+def test_model_decision_cannot_delegate_to_unapproved_target():
+    runtime = AgentRuntime(
+        agent_id="root-agent",
+        model=ScriptedModel(
+            [{"action": "delegate", "target_agent": "untrusted-agent", "summary": "delegate"}]
+        ),
+        a2a_client=FakeA2AClient({}),
+        allowed_targets={"worker-agent"},
+    )
+
+    result = asyncio.run(
+        runtime.handle_task(TaskInput(run_id=uuid4(), prompt="delegate", agent_id="root-agent"))
+    )
+
+    assert result.status == "blocked"
+    assert result.summary == "target agent is not allowed"
+
+
+def test_model_decision_cannot_call_unapproved_tool():
+    runtime = AgentRuntime(
+        agent_id="worker-agent",
+        model=ScriptedModel(
+            [{
+                "action": "mcp_call",
+                "server_id": "mcp-tools",
+                "tool_name": "shell",
+                "summary": "call tool",
+            }]
+        ),
+        a2a_client=None,
+        mcp_client=FakeMcpClient(),
+        allowed_mcp_servers={"mcp-tools"},
+        allowed_tools={"calculator"},
+    )
+
+    result = asyncio.run(
+        runtime.handle_task(TaskInput(run_id=uuid4(), prompt="call", agent_id="worker-agent"))
+    )
+
+    assert result.status == "blocked"
+    assert result.summary == "MCP tool is not allowed"
+
+
+def test_model_decision_schema_failure_is_fail_closed():
+    runtime = AgentRuntime(
+        agent_id="root-agent",
+        model=ScriptedModel([{"action": "delegate", "summary": "missing target"}]),
+        a2a_client=None,
+    )
+
+    result = asyncio.run(
+        runtime.handle_task(TaskInput(run_id=uuid4(), prompt="delegate", agent_id="root-agent"))
+    )
+
+    assert result.status == "failed"
+    assert result.summary.startswith("invalid model decision:")

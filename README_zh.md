@@ -4,6 +4,37 @@
 
 默认使用确定性的 mock 模型，不需要外部模型凭据。所有服务只在本地 Compose 网络中运行，适合构建可重复的实验和测试用例。
 
+## 使用真实模型决策
+
+项目已经支持 OpenAI-compatible 模型。真实模型不直接访问 Agent 或 MCP，而是返回一个动作 JSON，由 Agent Runtime 校验后执行。这样模型负责分析和选择动作，A2A、MCP、allowlist 和审计仍由实验环境控制。
+
+在 `.env` 中配置：
+
+```dotenv
+MODEL_PROVIDER=openai-compatible
+MODEL_NAME=your-model
+MODEL_BASE_URL=http://model-service:8000
+MODEL_API_KEY=your-key
+```
+
+`MODEL_BASE_URL` 必须是 gateway 容器可以访问的模型服务地址。Docker Desktop 通常可以使用 `host.docker.internal` 访问宿主机上的模型服务；Linux 环境需要让模型服务加入同一个 Docker 网络，或额外配置宿主机映射。
+
+模型必须返回以下三种动作之一，并且只返回 JSON：
+
+```json
+{"action":"delegate","target_agent":"worker-agent","summary":"把任务交给 worker 检查 fixture。"}
+```
+
+```json
+{"action":"mcp_call","server_id":"mcp-tools","tool_name":"calculator","arguments":{"operation":"add","a":1,"b":2},"summary":"调用计算器。"}
+```
+
+```json
+{"action":"answer","summary":"任务已完成。"}
+```
+
+root agent 默认只能委派给 `worker-agent`，不能调用 MCP 工具；worker agent 可以继续委派，并允许调用 `calculator` 和 `fixture_http_get`。未知 Agent、MCP server、工具、非法 JSON 和超出 hop 限制的决策都会被拒绝。
+
 ## 快速启动
 
 需要安装 Docker，以及 Docker Compose。执行：

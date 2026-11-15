@@ -9,20 +9,35 @@ from .mcp_adapter import GatewayMcpClient
 from .planner import AgentRuntime, TaskInput
 
 
+def _csv_env(name: str, default: str = "") -> set[str]:
+    value = os.getenv(name, default)
+    return {item.strip() for item in value.split(",") if item.strip()}
+
+
 app = FastAPI(title="A2A MCP Lab Agent", version="0.1.0")
 agent_id = os.getenv("AGENT_ID", "unconfigured")
 gateway_base_url = os.getenv("GATEWAY_BASE_URL", "http://gateway:8001")
-if os.getenv("MODEL_PROVIDER", "mock") == "openai-compatible":
+model_provider = os.getenv("MODEL_PROVIDER", "mock")
+model_name = os.getenv("MODEL_NAME", "lab-agent")
+if model_provider == "openai-compatible":
     model = OpenAICompatibleAdapter(
         f"{gateway_base_url}/model", os.getenv("MODEL_API_KEY", "")
     )
 else:
     model = MockModelAdapter()
+default_targets = "worker-agent"
+default_tools = "calculator,fixture_http_get" if agent_id == "worker-agent" else ""
 runtime = AgentRuntime(
     agent_id=agent_id,
     model=model,
     a2a_client=A2AClient(gateway_base_url),
     mcp_client=GatewayMcpClient(gateway_base_url),
+    max_hop=int(os.getenv("AGENT_MAX_HOP", "8")),
+    model_provider=model_provider,
+    model_name=model_name,
+    allowed_targets=_csv_env("AGENT_ALLOWED_TARGETS", default_targets),
+    allowed_mcp_servers=_csv_env("AGENT_ALLOWED_MCP_SERVERS", "mcp-tools,mcp-resources"),
+    allowed_tools=_csv_env("AGENT_ALLOWED_TOOLS", default_tools),
 )
 
 

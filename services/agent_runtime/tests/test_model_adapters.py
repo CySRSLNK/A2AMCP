@@ -53,3 +53,60 @@ def test_openai_compatible_adapter_maps_chat_completion_response():
 
     assert response.output == {"action": "answer", "summary": "ok"}
     assert response.usage == {"total_tokens": 3}
+
+
+def test_openai_compatible_adapter_accepts_json_code_fence():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "model": "test-model",
+                "choices": [{"message": {"content": '```json\n{"action":"answer"}\n```'}}],
+            },
+        )
+
+    adapter = OpenAICompatibleAdapter(
+        "https://model.local", "", transport=httpx.MockTransport(handler)
+    )
+
+    response = asyncio.run(
+        adapter.complete(
+            ModelRequest(
+                provider="openai-compatible",
+                model="test-model",
+                messages=[{"role": "user", "content": "hello"}],
+            )
+        )
+    )
+
+    assert response.output == {"action": "answer"}
+
+
+def test_openai_compatible_adapter_rejects_non_json_decision():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "model": "test-model",
+                "choices": [{"message": {"content": "delegate to worker"}}],
+            },
+        )
+
+    adapter = OpenAICompatibleAdapter(
+        "https://model.local", "", transport=httpx.MockTransport(handler)
+    )
+
+    try:
+        asyncio.run(
+            adapter.complete(
+                ModelRequest(
+                    provider="openai-compatible",
+                    model="test-model",
+                    messages=[{"role": "user", "content": "hello"}],
+                )
+            )
+        )
+    except ValueError as exc:
+        assert "valid JSON" in str(exc)
+    else:
+        raise AssertionError("invalid model decision was accepted")

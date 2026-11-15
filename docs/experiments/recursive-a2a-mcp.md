@@ -2,6 +2,8 @@
 
 The seeded `recursive-a2a-mcp` scenario keeps the topology fixed: `root-agent` delegates to `worker-agent`, the worker delegates one more logical hop, and the final worker calls the `calculator` tool through the MCP gateway. The mock model is deterministic, so the run is reproducible without external credentials.
 
+Set `MODEL_PROVIDER=openai-compatible` and configure `MODEL_NAME`, `MODEL_BASE_URL`, and `MODEL_API_KEY` to let a real model choose between `answer`, `delegate`, and `mcp_call` for each task. The model receives the current task, hop, available targets, MCP servers, and tool contracts. Its JSON decision is validated by the Agent Runtime before any A2A or MCP request is sent.
+
 Start the stack with `docker-compose up --build` (or `docker compose up --build` on hosts with the Compose plugin), open `http://127.0.0.1:5173`, load the seeded topology, and start a mediated run. The control plane is on port 8000 and the web workbench is on port 5173. `scripts/smoke.sh` performs the same setup from the terminal and prints the run id, final status, and event count.
 
 Every mediated A2A and MCP request is correlated with a run id, task id, agent id, hop, request id, protocol, operation, and per-run sequence. The workbench uses the event stream cursor to reconnect without reordering already received events. Payloads are redacted before persistence and large bodies are stored by SHA-256 under the named artifact volume.
