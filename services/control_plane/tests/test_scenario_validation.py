@@ -1,6 +1,9 @@
 import pytest
 import yaml
 
+from services.control_plane.app.events import EventStore
+from services.control_plane.app.main import create_app
+from services.control_plane.app.scenarios import ScenarioRegistry
 from shared.python.lab_core.scenario import ScenarioLoader
 
 
@@ -46,3 +49,45 @@ def test_seeded_yaml_loads_with_fixed_topology():
         "mcp-resources",
         "mcp-file-reader",
     }
+
+
+def test_legacy_seeded_scenario_is_upgraded_for_file_reader():
+    legacy = yaml.safe_load(open("scenarios/recursive-a2a-mcp.yaml"))
+    legacy["version"] = 1
+    legacy["mcp_servers"] = [
+        server for server in legacy["mcp_servers"] if server["id"] != "mcp-file-reader"
+    ]
+    legacy["policy_profile"]["allowed_tools"].remove("read_file")
+
+    registry = ScenarioRegistry(
+        loader=ScenarioLoader(
+            allowed_agents={"root-agent", "worker-agent"},
+            allowed_mcp_servers={"mcp-tools", "mcp-resources", "mcp-file-reader"},
+        )
+    )
+
+    scenario = registry.import_document(legacy)
+
+    assert scenario.version == 2
+    assert any(server.id == "mcp-file-reader" for server in scenario.mcp_servers)
+    assert "read_file" in scenario.policy_profile["allowed_tools"]
+
+
+def test_startup_persists_legacy_seeded_scenario_upgrade(tmp_path):
+    store = EventStore(f"sqlite:///{tmp_path / 'events.db'}")
+    legacy = yaml.safe_load(open("scenarios/recursive-a2a-mcp.yaml"))
+    legacy["version"] = 1
+    legacy["mcp_servers"] = [
+        server for server in legacy["mcp_servers"] if server["id"] != "mcp-file-reader"
+    ]
+    legacy["policy_profile"]["allowed_tools"].remove("read_file")
+    store.upsert_scenario(legacy["id"], legacy["version"], legacy)
+
+    app = create_app(store=store)
+    response = app.state.scenarios.get("recursive-a2a-mcp")
+
+    assert response is not None
+    assert response.version == 2
+    persisted = store.list_scenarios()[0]
+    assert any(server["id"] == "mcp-file-reader" for server in persisted["mcp_servers"])
+    assert "read_file" in persisted["policy_profile"]["allowed_tools"]

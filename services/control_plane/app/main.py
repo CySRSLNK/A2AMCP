@@ -29,7 +29,7 @@ from .runtime_config import (
     RuntimeConfig,
     RuntimeConfigStore,
 )
-from .scenarios import ScenarioRegistry
+from .scenarios import ScenarioRegistry, migrate_builtin_scenario
 
 
 async def event_stream(store: EventStore, run_id: UUID, after: int):
@@ -92,10 +92,17 @@ def create_app(
         )
     )
     for document in event_store.list_scenarios():
+        migrated_document = migrate_builtin_scenario(document)
         try:
-            application.state.scenarios.import_document(document)
+            scenario = application.state.scenarios.import_document(migrated_document)
         except ValueError:
             continue
+        if migrated_document != document:
+            event_store.upsert_scenario(
+                scenario.id,
+                scenario.version,
+                scenario.model_dump(mode="json"),
+            )
     application.state.attacks = AttackCatalogRegistry()
     _load_attack_catalog(
         application.state.attacks,

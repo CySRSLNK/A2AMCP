@@ -1,5 +1,5 @@
 id: recursive-a2a-mcp
-version: 1
+version: 2
 description: Root delegation through a worker chain followed by MCP tool and resource calls.
 agents:
   - id: root-agent
