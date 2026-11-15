@@ -9,6 +9,7 @@ import { TopologyPanel } from "./features/runs/TopologyPanel";
 import { ReplayControls } from "./features/replay/ReplayControls";
 import { ScenarioForm } from "./features/scenarios/ScenarioForm";
 import { AttackCatalogPanel, type AttackProtocolFilter } from "./features/attacks/AttackCatalogPanel";
+import { ControlPanel } from "./features/control/ControlPanel";
 import "./styles.css";
 
 function App() {
@@ -25,6 +26,7 @@ function App() {
   const [attackPlan, setAttackPlan] = useState<AttackPlan>();
   const [attackLoading, setAttackLoading] = useState(false);
   const [attackProtocol, setAttackProtocol] = useState<AttackProtocolFilter>("all");
+  const [view, setView] = useState<"workbench" | "control">("workbench");
 
   useEffect(() => {
     listScenarios().then(setScenarios).catch(() => setMessage("Control plane is offline. Seed a scenario after starting it."));
@@ -84,8 +86,10 @@ function App() {
     <main className="app-shell">
       <header className="topbar">
         <div><p className="eyebrow">A2A / MCP SECURITY LAB</p><h1>Run workbench</h1></div>
-        <div className={`status-chip ${run?.status ?? "idle"}`}><span className="status-dot" />{run?.status ?? "idle"}</div>
+        <div className="topbar-actions"><nav className="view-tabs" aria-label="Main views"><button className={view === "workbench" ? "active" : ""} type="button" onClick={() => setView("workbench")}>Workbench</button><button className={view === "control" ? "active" : ""} type="button" onClick={() => setView("control")}>Control</button></nav><div className={`status-chip ${run?.status ?? "idle"}`}><span className="status-dot" />{run?.status ?? "idle"}</div></div>
       </header>
+      {view === "control" && <ControlPanel onMessage={setMessage} />}
+      {view === "workbench" && <>
       <section className="command-bar panel">
         <ScenarioForm scenarios={scenarios} selected={selectedScenario} onSelect={setSelectedScenario} onSeed={seed} disabled={busy} />
         <label className="prompt-field" htmlFor="prompt"><span>Operator prompt</span><textarea id="prompt" rows={2} value={prompt} onChange={(event) => setPrompt(event.target.value)} disabled={busy} /></label>
@@ -97,6 +101,7 @@ function App() {
         <div className="main-column"><TopologyPanel run={run} /><EventTimeline events={events} selected={selectedEvent?.event_id} onSelect={setSelectedEvent} /></div>
         <aside className="side-column"><InspectorPanel event={selectedEvent} /><section className="panel controls-panel"><div className="panel-heading"><span>Run controls</span><span className="muted">{events.length} events</span></div><ReplayControls runId={run?.id} /></section></aside>
       </div>
+      </>}
       <footer className="footer-note">Capture mode: <strong>mediated</strong> · policy snapshot: <strong>frozen at run start</strong> · hidden reasoning is never rendered</footer>
     </main>
   );

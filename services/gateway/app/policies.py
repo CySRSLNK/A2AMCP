@@ -21,11 +21,13 @@ class PolicyEngine:
         max_hop: int = 8,
         max_payload_bytes: int = 256 * 1024,
         approval_operations: set[str] | None = None,
+        allow_dynamic_targets: bool = False,
     ):
         self.allowed_targets = allowed_targets or set()
         self.max_hop = max_hop
         self.max_payload_bytes = max_payload_bytes
         self.approval_operations = approval_operations or set()
+        self.allow_dynamic_targets = allow_dynamic_targets
 
     def evaluate(
         self,
@@ -34,7 +36,7 @@ class PolicyEngine:
         target: str,
         payload_summary: Any,
     ) -> PolicyDecision:
-        if target not in self.allowed_targets:
+        if target not in self.allowed_targets and not self.allow_dynamic_targets:
             return PolicyDecision(outcome="deny", rule_id="target-allowlist", reason="target is not allowed")
         if context.hop > self.max_hop:
             return PolicyDecision(outcome="deny", rule_id="max-hop", reason="delegation depth exceeded")

@@ -13,6 +13,7 @@ class PolicySnapshot(BaseModel):
     max_hop: int = Field(default=3, ge=0)
     allowed_tools: list[str] = Field(default_factory=list)
     allowed_targets: list[str] = Field(default_factory=list)
+    allowed_mcp_servers: list[str] = Field(default_factory=list)
     approval_required: list[str] = Field(default_factory=list)
     payload_limit: int = Field(default=1_048_576, ge=1)
 

@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException
 
 from .a2a_client import A2AClient
 from .agent_card import AgentCard
-from .model_proxy import MockModelAdapter, OpenAICompatibleAdapter
+from .model_proxy import DynamicModelAdapter, OpenAICompatibleAdapter
 from .mcp_adapter import GatewayMcpClient
 from .planner import AgentRuntime, TaskInput
 
@@ -22,12 +22,11 @@ model_name = os.getenv("MODEL_NAME", "lab-agent")
 model_timeout = float(os.getenv("MODEL_REQUEST_TIMEOUT", "120"))
 a2a_timeout = float(os.getenv("A2A_REQUEST_TIMEOUT", "300"))
 mcp_timeout = float(os.getenv("MCP_REQUEST_TIMEOUT", "60"))
-if model_provider == "openai-compatible":
-    model = OpenAICompatibleAdapter(
+model = DynamicModelAdapter(
+    OpenAICompatibleAdapter(
         f"{gateway_base_url}/model", os.getenv("MODEL_API_KEY", ""), timeout=model_timeout
     )
-else:
-    model = MockModelAdapter()
+)
 default_targets = "worker-agent"
 default_tools = "calculator,fixture_http_get" if agent_id == "worker-agent" else ""
 runtime = AgentRuntime(

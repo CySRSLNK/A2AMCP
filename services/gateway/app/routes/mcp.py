@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
+import httpx
 from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import JSONResponse
 
@@ -47,7 +48,7 @@ def build_router(proxy: McpProxy) -> APIRouter:
                 result = await proxy.initialize(context, server_id)
             else:
                 raise ValueError(f"unsupported MCP operation: {method}")
-        except (KeyError, ValueError, PermissionError) as exc:
+        except (KeyError, ValueError, PermissionError, httpx.HTTPError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return JSONResponse({"jsonrpc": "2.0", "id": request.get("id"), "result": result})
 

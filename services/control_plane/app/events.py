@@ -12,7 +12,7 @@ from shared.python.lab_core.contracts import EventDraft, ProtocolEvent
 from shared.python.lab_core.redaction import redact_payload
 
 from .db import build_engine, init_database, session_factory
-from .models import EventRecord, RunRecord, ScenarioRecord
+from .models import EventRecord, RunConfigSnapshotRecord, RunRecord, ScenarioRecord
 
 
 class EventStore:
@@ -91,8 +91,8 @@ class EventStore:
                     operation=draft.operation,
                     direction=draft.direction,
                     payload=redact_payload(draft.payload),
-                    policy_decision=draft.policy_decision,
-                    fault_action=draft.fault_action,
+                    policy_decision=redact_payload(draft.policy_decision),
+                    fault_action=redact_payload(draft.fault_action),
                     source_event_key=draft.source_event_key,
                     occurred_at=draft.occurred_at,
                 )
@@ -112,6 +112,7 @@ class EventStore:
     def delete_run(self, run_id: str) -> int:
         with self._session_factory.begin() as session:
             result = session.execute(delete(EventRecord).where(EventRecord.run_id == run_id))
+            session.execute(delete(RunConfigSnapshotRecord).where(RunConfigSnapshotRecord.run_id == run_id))
             session.execute(delete(RunRecord).where(RunRecord.id == run_id))
             return int(result.rowcount or 0)
 

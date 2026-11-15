@@ -65,6 +65,40 @@ docker compose up --build -d
 - API 文档：http://127.0.0.1:8000/docs
 - 健康检查：http://127.0.0.1:8000/healthz
 
+## 运行时控制后台
+
+打开 Web 工作台右上角的 `Control` 页面，可以在不重启 Compose 的情况下修改后续运行使用的模型和 MCP 代理注册：
+
+- Model：选择 `mock` 或 `openai-compatible`，修改模型名、Base URL、超时，并执行保留、替换或清除 API Key。
+- Agent policy：分别调整 root/worker 的最大 hop、可委派 Agent、可用 MCP server 和工具。
+- MCP proxy registrations：新增、编辑、启用/禁用或删除 HTTP(S) MCP 代理地址。这里管理的是网关注册，不会创建或删除 Compose 容器。
+
+API Key 只在 Control Plane 数据库中以 Fernet 密文保存，公开 API 和页面只返回是否设置及固定掩码。首次使用动态密钥前，在 `.env` 设置一个 Fernet 密钥，例如：
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+```dotenv
+CONFIG_ENCRYPTION_KEY=生成的密钥
+CONTROL_PLANE_INTERNAL_TOKEN=仅供 Compose 内部 Gateway 使用的随机值
+```
+
+每次 `POST /api/v1/runs` 都会在同一事务中保存配置快照。之后修改模型或删除 MCP 注册只影响新运行；旧运行仍解析自己的快照。Agent 任务只携带非敏感投影，API Key 不会进入 A2A body、Agent 容器、MCP 请求或事件记录。
+
+控制 API：
+
+```text
+GET  /api/v1/config
+PUT  /api/v1/config
+POST /api/v1/config/test-model
+POST /api/v1/config/mcp
+PUT  /api/v1/config/mcp/{server_id}
+DELETE /api/v1/config/mcp/{server_id}
+```
+
+配置更新使用 `expected_version` 做并发保护；`api_key_action` 可取 `preserve`、`replace` 或 `clear`。模型和 MCP 地址只允许 HTTP(S) origin，拒绝凭据、重定向以及 localhost、元数据和敏感私网地址。
+
 检查容器状态：
 
 ```bash
@@ -215,6 +249,10 @@ scripts/destroy-run.sh RUN_ID
 | `RUN_REQUEST_TIMEOUT` | `600` | Control Plane 等待整条运行链路的超时时间（秒） |
 | `DATABASE_URL` | Compose PostgreSQL | Control Plane 数据库连接 |
 | `GATEWAY_BASE_URL` | `http://gateway:8001` | Agent 使用的网关地址 |
+| `CONFIG_ENCRYPTION_KEY` | 空 | 运行时 API Key 的 Fernet 加密密钥；写入新密钥时必填 |
+| `CONTROL_PLANE_INTERNAL_TOKEN` | `lab-internal-dev-token` | Control Plane resolver 与 Gateway 之间的内部令牌 |
+| `MCP_TOOLS_URL` | `http://mcp-tools:8200` | 默认工具 MCP 代理地址 |
+| `MCP_RESOURCES_URL` | `http://mcp-resources:8200` | 默认资源 MCP 代理地址 |
 
 外部模型是可选配置。启用后，请确保模型服务只在你授权的范围内使用，并保留网关策略和事件记录。
 

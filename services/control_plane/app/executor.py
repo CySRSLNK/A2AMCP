@@ -13,6 +13,7 @@ async def execute_run(
     event_store,
     *,
     run_manager=None,
+    runtime_config_store=None,
     run_id: UUID,
     root_agent_id: str,
     prompt: str,
@@ -40,6 +41,8 @@ async def execute_run(
             else {}
         ),
     }
+    if runtime_config_store is not None:
+        task["runtime_config"] = runtime_config_store.projection(str(run_id)) or {}
     gateway = os.getenv("GATEWAY_BASE_URL", "http://127.0.0.1:8001").rstrip("/")
     try:
         async with httpx.AsyncClient(

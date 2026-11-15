@@ -20,6 +20,39 @@ export interface Run {
   policy?: Record<string, unknown>;
 }
 
+export interface AgentRuntimeConfig {
+  max_hop: number;
+  allowed_targets: string[];
+  allowed_mcp_servers: string[];
+  allowed_tools: string[];
+}
+
+export interface McpServerRuntimeConfig {
+  id: string;
+  endpoint: string;
+  enabled: boolean;
+  capabilities: string[];
+  allowed_tools: string[];
+  revision: number;
+}
+
+export interface RuntimeConfig {
+  version: number;
+  model: {
+    provider: "mock" | "openai-compatible";
+    model_name: string;
+    base_url: string;
+    request_timeout: number;
+    api_key_set: boolean;
+    api_key_masked: string;
+  };
+  agents: Record<string, AgentRuntimeConfig>;
+  mcp_servers: McpServerRuntimeConfig[];
+  a2a_request_timeout: number;
+  mcp_request_timeout: number;
+  run_request_timeout: number;
+}
+
 export interface ProtocolEvent {
   event_id: string;
   sequence: number;
@@ -169,4 +202,43 @@ export function getAttack(attackId: string, version?: number) {
 export function getAttackPlan(attackId: string, version?: number) {
   const query = version ? `?version=${version}` : "";
   return request<AttackPlan>(`/api/v1/attacks/${attackId}/plan${query}`);
+}
+
+export function getRuntimeConfig() {
+  return request<RuntimeConfig>("/api/v1/config");
+}
+
+export function updateRuntimeConfig(input: Record<string, unknown>) {
+  return request<RuntimeConfig>("/api/v1/config", {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+}
+
+export function testRuntimeModel(input: Record<string, unknown>) {
+  return request<{ ok: boolean; status_code?: number; error?: string; model?: string }>(
+    "/api/v1/config/test-model",
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+export function addMcpServer(input: Record<string, unknown>) {
+  return request<RuntimeConfig>("/api/v1/config/mcp", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateMcpServer(serverId: string, input: Record<string, unknown>) {
+  return request<RuntimeConfig>(`/api/v1/config/mcp/${encodeURIComponent(serverId)}`, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+}
+
+export function deleteMcpServer(serverId: string, expectedVersion: number) {
+  return request<RuntimeConfig>(
+    `/api/v1/config/mcp/${encodeURIComponent(serverId)}?expected_version=${expectedVersion}`,
+    { method: "DELETE" },
+  );
 }

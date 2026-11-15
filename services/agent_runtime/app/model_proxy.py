@@ -57,6 +57,19 @@ class MockModelAdapter:
         return ModelResponse(provider="mock", model="lab-deterministic", output=output)
 
 
+class DynamicModelAdapter:
+    """Select the provider from the run snapshot without restarting the agent."""
+
+    def __init__(self, remote: "OpenAICompatibleAdapter") -> None:
+        self.mock = MockModelAdapter()
+        self.remote = remote
+
+    async def complete(self, request: ModelRequest) -> ModelResponse:
+        if request.provider == "mock":
+            return await self.mock.complete(request)
+        return await self.remote.complete(request)
+
+
 class OpenAICompatibleAdapter:
     def __init__(
         self,
@@ -73,7 +86,13 @@ class OpenAICompatibleAdapter:
 
     async def complete(self, request: ModelRequest) -> ModelResponse:
         headers = {"content-type": "application/json"}
-        if self.api_key:
+        run_id = request.metadata.get("run_id")
+        if run_id:
+            headers["x-lab-run-id"] = str(run_id)
+        agent_id = request.metadata.get("agent_id")
+        if agent_id:
+            headers["x-lab-agent-id"] = str(agent_id)
+        if self.api_key and not run_id:
             headers["authorization"] = f"Bearer {self.api_key}"
         payload = {
             "model": request.model,

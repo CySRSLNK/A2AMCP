@@ -31,6 +31,35 @@ class RunRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class RuntimeConfigRecord(Base):
+    __tablename__ = "runtime_config"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    document: Mapped[dict] = mapped_column(JSON, nullable=False)
+    encrypted_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class RunConfigSnapshotRecord(Base):
+    __tablename__ = "run_config_snapshots"
+    run_id: Mapped[str] = mapped_column(ForeignKey("runs.id"), primary_key=True)
+    config_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    document: Mapped[dict] = mapped_column(JSON, nullable=False)
+    encrypted_api_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ConfigAuditRecord(Base):
+    __tablename__ = "config_audit"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    action: Mapped[str] = mapped_column(String(32), nullable=False)
+    changed_fields: Mapped[list] = mapped_column(JSON, nullable=False)
+    api_key_set: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class TaskRecord(Base):
     __tablename__ = "tasks"
     id: Mapped[str] = mapped_column(String(36), primary_key=True)

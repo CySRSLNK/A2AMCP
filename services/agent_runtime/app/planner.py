@@ -20,6 +20,7 @@ class TaskInput(BaseModel):
     hop: int = Field(default=0, ge=0)
     delegation_edges: list[str] = Field(default_factory=list)
     policy: dict[str, Any] = Field(default_factory=dict)
+    runtime_config: dict[str, Any] = Field(default_factory=dict)
 
 
 class AgentDecision(BaseModel):
@@ -100,7 +101,12 @@ class AgentRuntime:
         )
 
     async def handle_task(self, task: TaskInput) -> TaskResult:
-        effective_max_hop = min(self.max_hop, int(task.policy.get("max_hop", self.max_hop)))
+        agent_config = self._runtime_agent_config(task)
+        effective_max_hop = min(
+            self.max_hop,
+            int(agent_config.get("max_hop", self.max_hop)),
+            int(task.policy.get("max_hop", self.max_hop)),
+        )
         if task.hop >= effective_max_hop:
             return TaskResult(status="blocked", summary="maximum delegation depth exceeded")
         if task.delegation_edges.count(f"{self.agent_id}->{self.agent_id}") > 1:
@@ -108,16 +114,18 @@ class AgentRuntime:
         try:
             response = await self.model.complete(
                 ModelRequest(
-                    provider=self.model_provider,
-                    model=self.model_name,
+                    provider=self._model_config(task).get("provider", self.model_provider),
+                    model=self._model_config(task).get("model_name", self.model_name),
                     messages=self._messages(task),
                     metadata={
                         "role": "root" if self.agent_id == "root-agent" else "worker",
                         "agent_id": self.agent_id,
                         "hop": task.hop,
                         "allowed_targets": sorted(self._allowed_targets(task)),
-                        "allowed_mcp_servers": sorted(self.allowed_mcp_servers),
+                        "allowed_mcp_servers": sorted(self._allowed_mcp_servers(task)),
                         "allowed_tools": sorted(self._allowed_tools(task)),
+                        "run_id": str(task.run_id),
+                        "runtime_config_version": task.runtime_config.get("config_version"),
                     },
                 )
             )
@@ -136,7 +144,7 @@ class AgentRuntime:
         if decision.action == "mcp_call":
             if self.mcp_client is None:
                 return TaskResult(status="blocked", summary="MCP client is not configured")
-            if decision.server_id not in self.allowed_mcp_servers:
+            if decision.server_id not in self._allowed_mcp_servers(task):
                 return TaskResult(status="blocked", summary="MCP server is not allowed")
             if decision.tool_name not in self._allowed_tools(task):
                 return TaskResult(status="blocked", summary="MCP tool is not allowed")
@@ -197,16 +205,56 @@ class AgentRuntime:
         )
 
     def _allowed_targets(self, task: TaskInput) -> set[str]:
-        configured = set(task.policy.get("allowed_targets", []))
-        return self.allowed_targets & configured if configured else set(self.allowed_targets)
+        agent_config = self._runtime_agent_config(task)
+        allowed = (
+            set(agent_config.get("allowed_targets", []))
+            if "allowed_targets" in agent_config
+            else set(self.allowed_targets)
+        )
+        if task.policy.get("allowed_targets"):
+            allowed &= set(task.policy["allowed_targets"])
+        return allowed
+
+    def _allowed_mcp_servers(self, task: TaskInput) -> set[str]:
+        agent_config = self._runtime_agent_config(task)
+        allowed = (
+            set(agent_config.get("allowed_mcp_servers", []))
+            if "allowed_mcp_servers" in agent_config
+            else set(self.allowed_mcp_servers)
+        )
+        if task.policy.get("allowed_mcp_servers"):
+            allowed &= set(task.policy["allowed_mcp_servers"])
+        configured_servers = task.runtime_config.get("mcp_servers")
+        if configured_servers is not None:
+            allowed &= {
+                item["id"]
+                for item in configured_servers
+                if item.get("enabled", False)
+            }
+        return allowed
 
     def _allowed_tools(self, task: TaskInput) -> set[str]:
-        configured = set(task.policy.get("allowed_tools", []))
-        return self.allowed_tools & configured if configured else set(self.allowed_tools)
+        agent_config = self._runtime_agent_config(task)
+        allowed = (
+            set(agent_config.get("allowed_tools", []))
+            if "allowed_tools" in agent_config
+            else set(self.allowed_tools)
+        )
+        if task.policy.get("allowed_tools"):
+            allowed &= set(task.policy["allowed_tools"])
+        return allowed
+
+    def _runtime_agent_config(self, task: TaskInput) -> dict[str, Any]:
+        agents = task.runtime_config.get("agents", {})
+        return agents.get(self.agent_id, {}) if isinstance(agents, dict) else {}
+
+    def _model_config(self, task: TaskInput) -> dict[str, Any]:
+        model = task.runtime_config.get("model", {})
+        return model if isinstance(model, dict) else {}
 
     def _messages(self, task: TaskInput) -> list[dict[str, str]]:
         targets = ", ".join(sorted(self._allowed_targets(task))) or "none"
-        servers = ", ".join(sorted(self.allowed_mcp_servers)) or "none"
+        servers = ", ".join(sorted(self._allowed_mcp_servers(task))) or "none"
         tools = ", ".join(sorted(self._allowed_tools(task))) or "none"
         tool_contracts = []
         if "calculator" in self._allowed_tools(task):

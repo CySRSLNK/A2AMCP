@@ -5,7 +5,16 @@ import re
 from typing import Any
 
 
-_SENSITIVE_KEYS = {"authorization", "api_key", "apikey", "token", "secret", "password"}
+_SENSITIVE_KEYS = {
+    "authorization",
+    "api_key",
+    "apikey",
+    "model_api_key",
+    "config_encryption_key",
+    "token",
+    "secret",
+    "password",
+}
 _BEARER_PATTERN = re.compile(r"(Bearer\s+)[^\s,;]+", re.IGNORECASE)
 
 

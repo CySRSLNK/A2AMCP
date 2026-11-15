@@ -13,6 +13,23 @@ docker-compose up --build
 
 The web workbench is available at `http://127.0.0.1:5173` and the control-plane health endpoint is `http://127.0.0.1:8000/healthz`. On systems with the Compose plugin, use `docker compose` instead.
 
+The `Control` view in the web workbench is a runtime configuration console. It changes the model provider/name/base URL, applies explicit API-key preserve/replace/clear actions, edits root/worker policy allowlists, and manages MCP proxy registrations without restarting Compose. MCP registration is a gateway proxy entry; it does not create or remove containers.
+
+Runtime API keys are encrypted at rest. Generate a Fernet key and set it in `.env` before replacing a key:
+
+```bash
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+```dotenv
+CONFIG_ENCRYPTION_KEY=generated-fernet-key
+CONTROL_PLANE_INTERNAL_TOKEN=local-internal-token
+```
+
+Every new run stores an immutable configuration snapshot in the same database transaction as its run record. Later edits affect only new runs. Agent tasks receive a non-secret projection; the Gateway resolves the full snapshot through a token-protected internal endpoint and is the only component that decrypts the model key for an upstream request.
+
+The control API exposes `GET /api/v1/config`, `PUT /api/v1/config`, `POST /api/v1/config/test-model`, and MCP registration CRUD under `/api/v1/config/mcp`. Updates use `expected_version` for compare-and-swap and `api_key_action` values `preserve`, `replace`, or `clear`. Provider and MCP endpoints are restricted to HTTP(S) origins and reject credentials, redirects, localhost, metadata, and sensitive private networks.
+
 The default services are local-only and use a deterministic mock model. External model providers are opt-in through `.env`; model calls still pass through the gateway when configured.
 
 To let a real OpenAI-compatible model decide whether to answer, delegate, or call an MCP tool, set `MODEL_PROVIDER=openai-compatible`, choose `MODEL_NAME`, and point `MODEL_BASE_URL` at a model service reachable from the gateway container:

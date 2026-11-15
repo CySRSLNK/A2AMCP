@@ -20,11 +20,13 @@ class McpProxy:
         transport: HttpTransport | None = None,
         policy_engine: PolicyEngine | None = None,
         event_sink: Callable[[EventDraft], None] | None = None,
+        runtime_config_client=None,
     ):
         self.registry = {key: value.rstrip("/") for key, value in registry.items()}
         self.transport = transport or HttpTransport()
         self.policy_engine = policy_engine
         self.event_sink = event_sink
+        self.runtime_config_client = runtime_config_client
         self._ids = count(1)
 
     async def initialize(self, context: CorrelationContext, server_id: str) -> dict[str, Any]:
@@ -59,10 +61,26 @@ class McpProxy:
         *,
         policy_operation: str | None = None,
     ) -> dict[str, Any]:
-        try:
-            base_url = self.registry[server_id]
-        except KeyError as exc:
-            raise ValueError(f"unknown MCP server: {server_id}") from exc
+        base_url = self.registry.get(server_id)
+        if base_url is None and self.runtime_config_client is None:
+            raise ValueError(f"unknown MCP server: {server_id}")
+        server_config = None
+        if self.runtime_config_client is not None:
+            snapshot = await self.runtime_config_client.get_snapshot(str(context.run_id))
+            server_config = next(
+                (item for item in snapshot.get("mcp_servers", []) if item.get("id") == server_id),
+                None,
+            )
+            if server_config is None or not server_config.get("enabled", False):
+                raise ValueError(f"MCP server is not enabled: {server_id}")
+            capabilities = set(server_config.get("capabilities", []))
+            if method != "initialize" and method not in capabilities:
+                raise PermissionError(f"MCP operation is not allowed: {method}")
+            if method == "tools/call" and server_config.get("allowed_tools"):
+                tool_name = params.get("name")
+                if tool_name not in set(server_config["allowed_tools"]):
+                    raise PermissionError(f"MCP tool is not allowed: {tool_name}")
+            base_url = str(server_config["endpoint"]).rstrip("/")
         operation = policy_operation or method
         if self.policy_engine is not None:
             decision = self.policy_engine.evaluate(context, operation, server_id, params)

@@ -3,7 +3,7 @@ import asyncio
 import httpx
 
 from shared.python.lab_core.contracts import ModelRequest
-from services.agent_runtime.app.model_proxy import MockModelAdapter, OpenAICompatibleAdapter
+from services.agent_runtime.app.model_proxy import DynamicModelAdapter, MockModelAdapter, OpenAICompatibleAdapter
 
 
 def test_mock_model_returns_structured_delegate_decision():
@@ -110,3 +110,27 @@ def test_openai_compatible_adapter_rejects_non_json_decision():
         assert "valid JSON" in str(exc)
     else:
         raise AssertionError("invalid model decision was accepted")
+
+
+def test_dynamic_adapter_selects_provider_from_request_metadata():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["x-lab-run-id"] == "run-1"
+        return httpx.Response(
+            200,
+            json={"model": "remote", "choices": [{"message": {"content": '{"action":"answer"}'}}]},
+        )
+
+    adapter = DynamicModelAdapter(
+        OpenAICompatibleAdapter("https://model.local", "", transport=httpx.MockTransport(handler))
+    )
+    response = asyncio.run(
+        adapter.complete(
+            ModelRequest(
+                provider="openai-compatible",
+                model="remote",
+                messages=[],
+                metadata={"run_id": "run-1"},
+            )
+        )
+    )
+    assert response.output == {"action": "answer"}
