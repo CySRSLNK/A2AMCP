@@ -49,9 +49,31 @@ root agent 默认只能委派给 `worker-agent`，不能调用 MCP 工具；work
 {"action":"mcp_call","server_id":"mcp-file-writer","tool_name":"write_file","arguments":{"path":"result.txt","content":"本地实验输出"},"summary":"写入本地 fixture 文件。"}
 ```
 
-`mcp-file-reader` 只读挂载 `fixtures/file-reader`，`path` 必须是该目录内的相对路径。文件内容会作为不可信 MCP 数据返回，适合用来测试提示词注入和跨 Agent 传播；绝对路径、路径穿越、目录、非 UTF-8 文件和超出大小限制的文件会被拒绝。
+`mcp-file-reader` 只读挂载 `fixtures/`，`path` 必须是该目录内的相对路径。例如 `{"path":"example.txt"}` 读取宿主机的 `fixtures/example.txt`。文件内容会作为不可信 MCP 数据返回，适合用来测试提示词注入和跨 Agent 传播；绝对路径、路径穿越、目录、非 UTF-8 文件和超出大小限制的文件会被拒绝。
 
-`mcp-file-writer` 单独挂载可写目录 `fixtures/file-writer`，提供 `write_file`。参数为相对 `path` 和字符串 `content`，只允许写入该目录，拒绝绝对路径、路径穿越、目录和超过 `MCP_FILE_WRITER_MAX_BYTES` 的内容，并使用原子替换避免产生半写入文件。返回值只包含相对路径和字节数，不返回完整文件内容。该服务不开放宿主机端口，仅用于本地写入边界实验。
+`mcp-file-writer` 可写挂载同一个 `fixtures/`，提供 `write_file`。参数为相对 `path` 和字符串 `content`，只允许写入该目录，拒绝绝对路径、路径穿越、目录和超过 `MCP_FILE_WRITER_MAX_BYTES` 的内容，并使用原子替换避免产生半写入文件。返回值只包含相对路径和字节数，不返回完整文件内容。该服务不开放宿主机端口，仅用于本地写入边界实验。
+
+读写工具共用同一目录，writer 写入 `result.txt` 后，reader 可以直接读取 `result.txt`，无需复制或重启容器。直接编辑 `fixtures/` 中的文件也会立即对 MCP 生效。样例 `example.txt`、`email.txt` 受 Git 管理，其余实验输出默认忽略。
+
+```text
+fixtures/
+├── example.txt
+├── email.txt
+└── result.txt    # 实验生成，默认不提交
+```
+
+从旧目录布局升级时，先停掉两个文件 MCP，再拉取并迁移旧数据。以下命令适用于 writer 使用默认 `1000:1000` 的服务器；自定义 UID/GID 时替换 `chown` 中的数值：
+
+```bash
+docker compose stop mcp-file-reader mcp-file-writer
+git pull --ff-only
+python3 scripts/migrate_fixtures.py
+sudo chown 1000:1000 fixtures
+sudo chmod 755 fixtures
+docker compose up -d --force-recreate mcp-file-reader mcp-file-writer
+```
+
+迁移脚本把旧目录里的文件和子目录移动到 `fixtures/`，保留内容和权限，然后移除空的旧目录。发现根目录或两个旧目录之间存在同名条目时，会在移动任何文件前退出；先重命名冲突文件再重试。重复运行脚本不会影响已经迁移的文件。旧版 Compose 可将命令替换为 `docker-compose`。
 
 每个 Agent 收到任务后都会重新请求模型，由当前 Agent 自己选择 `answer`、`delegate` 或 `mcp_call`。因此实际链路可以是 `root-agent -> worker-agent -> mcp-tools`，也可以是 `root-agent -> worker-agent -> worker-agent -> mcp-tools`。运行时不会预先把 worker 固定为 MCP 调用者，只会执行模型返回且通过 allowlist 校验的动作。为了兼容部分 OpenAI-compatible 服务返回的字段别名，运行时也会把 `type/server/tool/target` 归一化为 `action/server_id/tool_name/target_agent`，未知字段仍会被拒绝。
 
@@ -93,7 +115,7 @@ LAB_BIND_HOST=0.0.0.0
 
 然后启动服务，浏览器打开 `http://服务器IP:5173`。前端默认使用同源 `/api`，Web 容器中的 Nginx 将请求转发到 `control-plane:8000`；SSE 事件流关闭代理缓冲，并允许长任务等待。浏览器无需直接连接 8000 端口，也无需单独配置服务器 IP 的 CORS。`LAB_BIND_HOST` 同时影响 Web 和 API 的宿主机绑定，服务器安全组可限制 8000 的外部访问。控制后台没有内置登录认证，应通过 SSH 隧道、访问来源限制或带认证的反向代理访问。
 
-写文件 MCP 的 `MCP_FILE_WRITER_UID`、`MCP_FILE_WRITER_GID` 应与 `fixtures/file-writer` 目录所有者一致；使用前端保存模型 Key 前，须设置下文的 `CONFIG_ENCRYPTION_KEY`。
+写文件 MCP 的 `MCP_FILE_WRITER_UID`、`MCP_FILE_WRITER_GID` 应与共享 `fixtures/` 目录所有者一致；使用前端保存模型 Key 前，须设置下文的 `CONFIG_ENCRYPTION_KEY`。使用 root 启动 Compose 时，writer 仍按配置的 UID/GID 运行，需要为该用户授予目录写权限。
 
 从旧版本更新前端连接修复时，在服务器仓库目录执行：
 
@@ -184,7 +206,7 @@ Root Agent -> Worker Agent
 | `mcp-tools` | 本地工具型 MCP fixture，包含 calculator 等工具 | Compose 内部 |
 | `mcp-resources` | 本地资源型 MCP fixture | Compose 内部 |
 | `mcp-file-reader` | 只读文件型 MCP fixture，提供 `read_file` | Compose 内部 |
-| `mcp-file-writer` | 隔离写文件型 MCP fixture，提供 `write_file` | Compose 内部 |
+| `mcp-file-writer` | 在共享 `fixtures/` 内写文件的 MCP fixture，提供 `write_file` | Compose 内部 |
 | `postgres` | 保存运行、事件和场景元数据 | Compose 内部 |
 
 默认递归场景位于 `scenarios/recursive-a2a-mcp.yaml`。典型链路是：

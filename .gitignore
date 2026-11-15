@@ -10,4 +10,6 @@ coverage/
 .env
 data/
 .superpowers/
-fixtures/file-writer/
+fixtures/*
+!fixtures/example.txt
+!fixtures/email.txt

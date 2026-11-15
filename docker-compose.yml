@@ -189,7 +189,7 @@ services:
       MCP_FILE_ROOT: /var/lib/a2a-mcp/files
       MCP_FILE_MAX_BYTES: ${MCP_FILE_MAX_BYTES:-65536}
     volumes:
-      - ./fixtures/file-reader:/var/lib/a2a-mcp/files:ro
+      - ./fixtures:/var/lib/a2a-mcp/files:ro
     networks: [lab]
     read_only: true
     tmpfs: [/tmp]
@@ -211,7 +211,7 @@ services:
       MCP_FILE_ROOT: /var/lib/a2a-mcp/files
       MCP_FILE_WRITER_MAX_BYTES: ${MCP_FILE_WRITER_MAX_BYTES:-65536}
     volumes:
-      - ./fixtures/file-writer:/var/lib/a2a-mcp/files
+      - ./fixtures:/var/lib/a2a-mcp/files
     networks: [lab]
     read_only: true
     tmpfs: [/tmp]

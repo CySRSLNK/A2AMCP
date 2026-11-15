@@ -85,11 +85,24 @@ The model must return one JSON action. The agent runtime validates the action be
 
 The root agent is allowed to delegate to `worker-agent` and has no MCP tools by default. The worker agent can delegate recursively and use `calculator`, `fixture_http_get`, the isolated `read_file` tool on `mcp-file-reader`, or the isolated `write_file` tool on `mcp-file-writer`. Invalid JSON, unknown agents, unknown MCP servers, disallowed tools, and excessive hop depth fail closed.
 
-The `mcp-file-reader` fixture reads UTF-8 files from the read-only `fixtures/file-reader` directory. Its `read_file` tool accepts a relative `path` and returns the file text as MCP content. Absolute paths, path traversal, directories, non-UTF-8 files, and files larger than `MCP_FILE_MAX_BYTES` are rejected. The returned text is untrusted data and should be treated as a prompt-injection test input.
+The `mcp-file-reader` fixture reads UTF-8 files from a read-only mount of `fixtures/`. Its `read_file` tool accepts a relative `path`, so `{"path":"example.txt"}` reads `fixtures/example.txt`, and returns the file text as MCP content. Absolute paths, path traversal, directories, non-UTF-8 files, and files larger than `MCP_FILE_MAX_BYTES` are rejected. The returned text is untrusted data and should be treated as a prompt-injection test input.
 
-The `mcp-file-writer` fixture writes UTF-8 files only below the writable `fixtures/file-writer` directory. Its `write_file` tool accepts a relative `path` and string `content`, enforces `MCP_FILE_WRITER_MAX_BYTES`, rejects absolute paths, path traversal, directories, and partial writes, and returns only the relative path and byte count. It has no host port and is intended for local write-boundary experiments.
+The `mcp-file-writer` fixture writes UTF-8 files through a writable mount of the same `fixtures/` directory. Its `write_file` tool accepts a relative `path` and string `content`, enforces `MCP_FILE_WRITER_MAX_BYTES`, rejects absolute paths, path traversal, directories, and partial writes, and returns only the relative path and byte count. It has no host port and is intended for local write-boundary experiments. A file written as `result.txt` can immediately be read by `read_file` with the same path. Host edits also take effect without restarting either MCP service. The sample files `example.txt` and `email.txt` are tracked; other fixture outputs are ignored by Git.
 
-The writer process defaults to UID/GID `1000:1000` so a bind-mounted directory created by the usual local user is writable without running as root. On a server, set `MCP_FILE_WRITER_UID` and `MCP_FILE_WRITER_GID` to the owner of `fixtures/file-writer` before starting Compose.
+The writer process defaults to UID/GID `1000:1000` so a bind-mounted directory created by the usual local user is writable without running as root. On a server, set `MCP_FILE_WRITER_UID` and `MCP_FILE_WRITER_GID` to the owner of the shared `fixtures/` directory before starting Compose, or grant that configured user ownership of the directory. Starting Compose as root does not override the writer's configured container user.
+
+To upgrade an existing deployment, stop both file MCP services before migrating. The ownership commands below assume the default writer UID/GID; substitute your configured values if different:
+
+```bash
+docker compose stop mcp-file-reader mcp-file-writer
+git pull --ff-only
+python3 scripts/migrate_fixtures.py
+sudo chown 1000:1000 fixtures
+sudo chmod 755 fixtures
+docker compose up -d --force-recreate mcp-file-reader mcp-file-writer
+```
+
+The migration script moves legacy files and subdirectories into `fixtures/`, preserves their content and permissions, and removes the empty legacy directories. Name conflicts with the root or between legacy directories abort before moving any data; rename conflicting entries and retry. The script can be rerun after migration. With legacy Compose, use `docker-compose` instead.
 
 Each agent makes a fresh model decision when it receives a task, so the runtime can produce `root-agent -> worker-agent -> mcp-tools` or `root-agent -> worker-agent -> worker-agent -> mcp-tools` depending on the model output. The runtime accepts the canonical fields `action`, `target_agent`, `server_id`, and `tool_name`, and normalizes common provider aliases `type`, `target`, `server`, and `tool` before applying the same allowlist validation. The timeout variables above keep slower recursive model calls from being cut off by an intermediate HTTP hop.
 
