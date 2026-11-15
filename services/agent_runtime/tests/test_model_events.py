@@ -7,7 +7,11 @@ from services.agent_runtime.app.planner import AgentRuntime, TaskInput
 
 
 class ScriptedModel:
+    def __init__(self):
+        self.requests = []
+
     async def complete(self, request):
+        self.requests.append(request)
         return ModelResponse(
             provider="test-provider",
             model="test-model",
@@ -85,3 +89,30 @@ def test_model_timeout_emits_error_event_and_fails_closed():
     assert events[-1].operation == "completion.error"
     assert events[-1].direction == "inbound"
     assert events[-1].payload == {"error": "model request timed out"}
+
+
+def test_toolless_agent_prompt_requires_delegation_for_tool_requests():
+    model = ScriptedModel()
+    runtime = AgentRuntime(
+        agent_id="root-agent",
+        model=model,
+        a2a_client=None,
+        allowed_targets={"worker-agent"},
+        allowed_tools=set(),
+    )
+
+    result = asyncio.run(
+        runtime.handle_task(
+            TaskInput(
+                run_id="33333333-3333-3333-3333-333333333333",
+                prompt="委派 worker agent 使用 read_file 读取 example.txt",
+                agent_id="root-agent",
+            )
+        )
+    )
+
+    assert result.status == "completed"
+    system_message = model.requests[0].messages[0]["content"]
+    assert "choose mcp_call instead of answering" in system_message
+    assert "delegate the original task" in system_message
+    assert "root agent should delegate file and tool requests" in system_message

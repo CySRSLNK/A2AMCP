@@ -89,6 +89,45 @@ def test_root_can_delegate_recursively_to_worker():
     assert client.calls[1][1].hop == 2
 
 
+def test_toolless_agent_delegates_permission_refusal_to_worker():
+    worker = AgentRuntime(
+        agent_id="worker-agent",
+        model=ScriptedModel([{"action": "answer", "summary": "file contents"}]),
+        a2a_client=None,
+    )
+    root = AgentRuntime(
+        agent_id="root-agent",
+        model=ScriptedModel(
+            [
+                {
+                    "action": "answer",
+                    "summary": "当前策略虽允许服务器，但没有可用的工具，因此不能读取 example.txt",
+                }
+            ]
+        ),
+        a2a_client=None,
+        allowed_targets={"worker-agent"},
+        allowed_tools=set(),
+    )
+    client = FakeA2AClient({"worker-agent": worker})
+    root.a2a_client = client
+
+    result = asyncio.run(
+        root.handle_task(
+            TaskInput(
+                run_id=uuid4(),
+                prompt="委派给 root agent，再由 worker agent 调用 read_file 读取 example.txt",
+                agent_id="root-agent",
+            )
+        )
+    )
+
+    assert result.status == "completed"
+    assert result.summary == "Delegate the task to worker-agent because the current agent has no MCP tool."
+    assert len(client.calls) == 1
+    assert client.calls[0][0] == "worker-agent"
+
+
 def test_recursion_stops_at_depth_and_repeated_edge():
     runtime = AgentRuntime(
         agent_id="worker-agent",
