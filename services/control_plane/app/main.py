@@ -3,16 +3,19 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import asdict
+from pathlib import Path
 from uuid import UUID, uuid4
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
+import yaml
 
 from shared.python.lab_core.contracts import EventDraft
 from shared.python.lab_core.scenario import ScenarioLoader
 
 from .approvals import ApprovalManager
+from .attacks import AttackCatalogRegistry
 from .artifacts import ArtifactStore, RunDestroyer
 from .events import EventStore
 from .executor import execute_run
@@ -30,7 +33,36 @@ async def event_stream(store: EventStore, run_id: UUID, after: int):
         )
 
 
-def create_app(store: EventStore | None = None) -> FastAPI:
+def _default_attack_catalog_path() -> Path:
+    return Path(__file__).resolve().parents[3] / "scenarios" / "attack-catalog.yaml"
+
+
+def _load_attack_catalog(
+    registry: AttackCatalogRegistry,
+    *,
+    path: str | Path | None = None,
+    document: dict | None = None,
+) -> None:
+    if document is not None:
+        registry.import_document(document)
+        return
+    catalog_path = Path(path or os.getenv("ATTACK_CATALOG_PATH", _default_attack_catalog_path()))
+    try:
+        loaded = yaml.safe_load(catalog_path.read_text())
+    except OSError as exc:
+        raise RuntimeError(f"attack catalog is unavailable: {catalog_path}") from exc
+    try:
+        registry.import_document(loaded)
+    except ValueError as exc:
+        raise RuntimeError(f"attack catalog is invalid: {catalog_path}: {exc}") from exc
+
+
+def create_app(
+    store: EventStore | None = None,
+    *,
+    attack_catalog: dict | None = None,
+    attack_catalog_path: str | Path | None = None,
+) -> FastAPI:
     event_store = store or EventStore(os.getenv("DATABASE_URL", "sqlite:///./data/control-plane.db"))
     application = FastAPI(title="A2A MCP Lab Control Plane", version="0.1.0")
     application.add_middleware(
@@ -53,6 +85,12 @@ def create_app(store: EventStore | None = None) -> FastAPI:
             application.state.scenarios.import_document(document)
         except ValueError:
             continue
+    application.state.attacks = AttackCatalogRegistry()
+    _load_attack_catalog(
+        application.state.attacks,
+        path=attack_catalog_path,
+        document=attack_catalog,
+    )
     application.state.runs = RunManager()
     application.state.approvals = ApprovalManager()
     application.state.replay = ReplayEngine()
@@ -76,6 +114,40 @@ def create_app(store: EventStore | None = None) -> FastAPI:
     @application.get("/api/v1/scenarios")
     def list_scenarios() -> list[dict]:
         return [scenario.model_dump(mode="json") for scenario in application.state.scenarios.list()]
+
+    @application.get("/api/v1/attacks")
+    async def list_attacks() -> list[dict]:
+        return [
+            case.model_dump(
+                mode="json",
+                include={
+                    "id",
+                    "version",
+                    "protocol_path",
+                    "runnable",
+                    "fixture_scenario_id",
+                    "category",
+                    "title",
+                    "summary",
+                    "safe_fixture",
+                },
+            )
+            for case in application.state.attacks.list()
+        ]
+
+    @application.get("/api/v1/attacks/{attack_id}")
+    async def get_attack(attack_id: str, version: int | None = Query(default=None, ge=1)) -> dict:
+        case = application.state.attacks.get(attack_id, version=version)
+        if case is None:
+            raise HTTPException(status_code=404, detail="attack case not found")
+        return case.model_dump(mode="json")
+
+    @application.get("/api/v1/attacks/{attack_id}/plan")
+    async def get_attack_plan(attack_id: str, version: int | None = Query(default=None, ge=1)) -> dict:
+        try:
+            return application.state.attacks.plan(attack_id, version=version)
+        except KeyError as exc:
+            raise HTTPException(status_code=404, detail="attack case not found") from exc
 
     @application.post("/api/v1/runs")
     def create_run(body: dict, background_tasks: BackgroundTasks) -> dict:

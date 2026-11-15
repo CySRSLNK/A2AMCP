@@ -37,15 +37,7 @@ class AttackCatalogRegistry:
         case = self.get(attack_id, version=version)
         if case is None:
             raise KeyError(attack_id)
-        return {
-            "id": case.id,
-            "version": case.version,
-            "protocol_path": case.protocol_path,
-            "runnable": case.runnable,
-            "fixture_scenario_id": case.fixture_scenario_id,
-            "safe_fixture": case.safe_fixture,
-            "preconditions": case.preconditions.model_dump(mode="json"),
-            "expected_events": [event.model_dump(mode="json") for event in case.expected_events],
-            "oracle": case.oracle.model_dump(mode="json"),
-        }
+        plan = case.model_dump(mode="json")
+        plan["plan_mode"] = "read-only"
+        return plan
 
