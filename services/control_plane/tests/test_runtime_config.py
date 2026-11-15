@@ -47,6 +47,17 @@ def test_default_runtime_config_registers_file_reader():
     assert "read_file" in config.agents["worker-agent"].allowed_tools
 
 
+def test_default_runtime_config_registers_file_writer():
+    config = build_default_runtime_config()
+
+    writer = next(server for server in config.mcp_servers if server.id == "mcp-file-writer")
+
+    assert writer.endpoint == "http://mcp-file-writer:8200"
+    assert writer.capabilities == ["tools/list", "tools/call"]
+    assert writer.allowed_tools == ["write_file"]
+    assert "write_file" in config.agents["worker-agent"].allowed_tools
+
+
 def test_existing_runtime_config_migrates_new_file_reader_defaults(tmp_path: Path):
     event_store = EventStore(f"sqlite:///{tmp_path / 'config.db'}")
     store = RuntimeConfigStore(event_store)
@@ -70,8 +81,62 @@ def test_existing_runtime_config_migrates_new_file_reader_defaults(tmp_path: Pat
 
     assert migrated.version == current.version + 2
     assert any(server.id == "mcp-file-reader" for server in migrated.mcp_servers)
+    assert any(server.id == "mcp-file-writer" for server in migrated.mcp_servers)
     assert "mcp-file-reader" in migrated.agents["worker-agent"].allowed_mcp_servers
+    assert "mcp-file-writer" in migrated.agents["worker-agent"].allowed_mcp_servers
     assert "read_file" in migrated.agents["worker-agent"].allowed_tools
+    assert "write_file" in migrated.agents["worker-agent"].allowed_tools
+
+
+def test_existing_file_reader_config_migrates_file_writer_defaults(tmp_path: Path):
+    event_store = EventStore(f"sqlite:///{tmp_path / 'config.db'}")
+    store = RuntimeConfigStore(event_store)
+    current = store.get_active()
+    old_agents = dict(current.agents)
+    old_agents["root-agent"] = old_agents["root-agent"].model_copy(
+        update={"allowed_mcp_servers": ["mcp-tools", "mcp-resources", "mcp-file-reader"]}
+    )
+    old_agents["worker-agent"] = old_agents["worker-agent"].model_copy(
+        update={
+            "allowed_mcp_servers": ["mcp-tools", "mcp-resources", "mcp-file-reader"],
+            "allowed_tools": ["calculator", "fixture_http_get", "read_file"],
+        }
+    )
+    old_config = current.model_copy(
+        update={"agents": old_agents, "mcp_servers": current.mcp_servers[:3]}
+    )
+    store.replace_active(old_config, expected_version=current.version)
+
+    migrated = RuntimeConfigStore(event_store).get_active()
+
+    assert any(server.id == "mcp-file-writer" for server in migrated.mcp_servers)
+    assert "mcp-file-writer" in migrated.agents["root-agent"].allowed_mcp_servers
+    assert "mcp-file-writer" in migrated.agents["worker-agent"].allowed_mcp_servers
+    assert "write_file" in migrated.agents["worker-agent"].allowed_tools
+
+
+def test_existing_file_writer_registration_migrates_missing_agent_permissions(tmp_path: Path):
+    event_store = EventStore(f"sqlite:///{tmp_path / 'config.db'}")
+    store = RuntimeConfigStore(event_store)
+    current = store.get_active()
+    old_agents = dict(current.agents)
+    old_agents["root-agent"] = old_agents["root-agent"].model_copy(
+        update={"allowed_mcp_servers": ["mcp-tools", "mcp-resources", "mcp-file-reader"]}
+    )
+    old_agents["worker-agent"] = old_agents["worker-agent"].model_copy(
+        update={
+            "allowed_mcp_servers": ["mcp-tools", "mcp-resources", "mcp-file-reader"],
+            "allowed_tools": ["calculator", "fixture_http_get", "read_file"],
+        }
+    )
+    old_config = current.model_copy(update={"agents": old_agents})
+    store.replace_active(old_config, expected_version=current.version)
+
+    migrated = RuntimeConfigStore(event_store).get_active()
+
+    assert "mcp-file-writer" in migrated.agents["root-agent"].allowed_mcp_servers
+    assert "mcp-file-writer" in migrated.agents["worker-agent"].allowed_mcp_servers
+    assert "write_file" in migrated.agents["worker-agent"].allowed_tools
 
 
 def test_runtime_config_store_rejects_stale_version_and_unsafe_endpoint(tmp_path: Path, monkeypatch):

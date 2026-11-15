@@ -15,7 +15,7 @@ BUILTIN_SCENARIO_ID = "recursive-a2a-mcp"
 
 def migrate_builtin_scenario(document: dict[str, Any]) -> dict[str, Any]:
     """Upgrade the shipped scenario without widening unrelated custom scenarios."""
-    if document.get("id") != BUILTIN_SCENARIO_ID or int(document.get("version", 1)) >= 2:
+    if document.get("id") != BUILTIN_SCENARIO_ID or int(document.get("version", 1)) >= 3:
         return document
 
     migrated = deepcopy(document)
@@ -35,8 +35,22 @@ def migrate_builtin_scenario(document: dict[str, Any]) -> dict[str, Any]:
         )
         changed = True
 
+    if "mcp-file-writer" not in server_ids:
+        servers.append(
+            {
+                "id": "mcp-file-writer",
+                "endpoint": "http://mcp-file-writer:9100/mcp",
+                "capabilities": ["tools/list", "tools/call"],
+            }
+        )
+        changed = True
+
     if "read_file" not in allowed_tools:
         allowed_tools.append("read_file")
+        changed = True
+
+    if "write_file" not in allowed_tools:
+        allowed_tools.append("write_file")
         changed = True
 
     if not changed:
@@ -45,7 +59,7 @@ def migrate_builtin_scenario(document: dict[str, Any]) -> dict[str, Any]:
     policy["allowed_tools"] = allowed_tools
     migrated["mcp_servers"] = servers
     migrated["policy_profile"] = policy
-    migrated["version"] = max(int(migrated.get("version", 1)), 2)
+    migrated["version"] = max(int(migrated.get("version", 1)), 3)
     return migrated
 
 

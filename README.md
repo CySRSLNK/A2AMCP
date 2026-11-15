@@ -2,7 +2,7 @@
 
 [中文文档](README_zh.md)
 
-This repository contains a local Docker Compose lab for studying recursive A2A delegation, MCP tools/resources, prompt injection, policy enforcement, and replay behavior. The default topology is a root agent, a worker agent, a gateway, three fixture MCP servers, a control plane, PostgreSQL, and a browser workbench.
+This repository contains a local Docker Compose lab for studying recursive A2A delegation, MCP tools/resources, prompt injection, policy enforcement, and replay behavior. The default topology is a root agent, a worker agent, a gateway, four fixture MCP servers, a control plane, PostgreSQL, and a browser workbench.
 
 ## Start the scaffold
 
@@ -62,12 +62,20 @@ The model must return one JSON action. The agent runtime validates the action be
 ```
 
 ```json
+{"action":"mcp_call","server_id":"mcp-file-writer","tool_name":"write_file","arguments":{"path":"result.txt","content":"local experiment output"},"summary":"Write a local fixture file."}
+```
+
+```json
 {"action":"answer","summary":"The task is complete."}
 ```
 
-The root agent is allowed to delegate to `worker-agent` and has no MCP tools by default. The worker agent can delegate recursively and use `calculator`, `fixture_http_get`, or the isolated `read_file` tool on `mcp-file-reader`. Invalid JSON, unknown agents, unknown MCP servers, disallowed tools, and excessive hop depth fail closed.
+The root agent is allowed to delegate to `worker-agent` and has no MCP tools by default. The worker agent can delegate recursively and use `calculator`, `fixture_http_get`, the isolated `read_file` tool on `mcp-file-reader`, or the isolated `write_file` tool on `mcp-file-writer`. Invalid JSON, unknown agents, unknown MCP servers, disallowed tools, and excessive hop depth fail closed.
 
 The `mcp-file-reader` fixture reads UTF-8 files from the read-only `fixtures/file-reader` directory. Its `read_file` tool accepts a relative `path` and returns the file text as MCP content. Absolute paths, path traversal, directories, non-UTF-8 files, and files larger than `MCP_FILE_MAX_BYTES` are rejected. The returned text is untrusted data and should be treated as a prompt-injection test input.
+
+The `mcp-file-writer` fixture writes UTF-8 files only below the writable `fixtures/file-writer` directory. Its `write_file` tool accepts a relative `path` and string `content`, enforces `MCP_FILE_WRITER_MAX_BYTES`, rejects absolute paths, path traversal, directories, and partial writes, and returns only the relative path and byte count. It has no host port and is intended for local write-boundary experiments.
+
+The writer process defaults to UID/GID `1000:1000` so a bind-mounted directory created by the usual local user is writable without running as root. On a server, set `MCP_FILE_WRITER_UID` and `MCP_FILE_WRITER_GID` to the owner of `fixtures/file-writer` before starting Compose.
 
 Each agent makes a fresh model decision when it receives a task, so the runtime can produce `root-agent -> worker-agent -> mcp-tools` or `root-agent -> worker-agent -> worker-agent -> mcp-tools` depending on the model output. The runtime accepts the canonical fields `action`, `target_agent`, `server_id`, and `tool_name`, and normalizes common provider aliases `type`, `target`, `server`, and `tool` before applying the same allowlist validation. The timeout variables above keep slower recursive model calls from being cut off by an intermediate HTTP hop.
 

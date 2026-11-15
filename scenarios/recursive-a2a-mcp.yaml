@@ -1,6 +1,6 @@
 id: recursive-a2a-mcp
-version: 2
-description: Root delegation through a worker chain followed by MCP tool and resource calls.
+version: 3
+description: Root delegation through a worker chain followed by MCP tool, resource, read, and write calls.
 agents:
   - id: root-agent
     role: root
@@ -20,11 +20,14 @@ mcp_servers:
   - id: mcp-file-reader
     endpoint: http://mcp-file-reader:9100/mcp
     capabilities: [tools/list, tools/call]
+  - id: mcp-file-writer
+    endpoint: http://mcp-file-writer:9100/mcp
+    capabilities: [tools/list, tools/call]
 policy_profile:
   version: 1
   max_hop: 3
   allowed_targets: [root-agent, worker-agent]
-  allowed_tools: [calculator, fixture_http_get, read_file]
+  allowed_tools: [calculator, fixture_http_get, read_file, write_file]
   payload_limit: 1048576
 model_provider:
   provider: mock

@@ -137,8 +137,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const seededScenario: Scenario = {
   id: "recursive-a2a-mcp",
-  version: 2,
-  description: "Root delegation through a worker chain followed by MCP operations.",
+  version: 3,
+  description: "Root delegation through a worker chain followed by MCP tool, resource, read, and write operations.",
   agents: [
     { id: "root-agent", role: "root", capabilities: ["delegate", "answer"] },
     { id: "worker-agent", role: "worker", capabilities: ["delegate", "mcp", "answer"] },
@@ -147,11 +147,12 @@ export const seededScenario: Scenario = {
     { id: "mcp-tools", capabilities: ["tools/list", "tools/call"] },
     { id: "mcp-resources", capabilities: ["resources/read"] },
     { id: "mcp-file-reader", capabilities: ["tools/list", "tools/call"] },
+    { id: "mcp-file-writer", capabilities: ["tools/list", "tools/call"] },
   ],
   policy_profile: {
     max_hop: 3,
     allowed_targets: ["root-agent", "worker-agent"],
-    allowed_tools: ["calculator", "fixture_http_get", "read_file"],
+    allowed_tools: ["calculator", "fixture_http_get", "read_file", "write_file"],
   },
   model_provider: { provider: "mock", model: "lab-demo" },
 };

@@ -42,10 +42,17 @@ app.include_router(
                 "mcp-tools": os.getenv("MCP_TOOLS_URL", "http://mcp-tools:8200"),
                 "mcp-resources": os.getenv("MCP_RESOURCES_URL", "http://mcp-resources:8200"),
                 "mcp-file-reader": os.getenv("MCP_FILE_READER_URL", "http://mcp-file-reader:8200"),
+                "mcp-file-writer": os.getenv("MCP_FILE_WRITER_URL", "http://mcp-file-writer:8200"),
             },
             transport=HttpTransport(timeout=mcp_timeout),
             policy_engine=PolicyEngine(
-                allowed_targets={"mcp-tools", "mcp-resources", "mcp-file-reader"}, allow_dynamic_targets=True
+                allowed_targets={
+                    "mcp-tools",
+                    "mcp-resources",
+                    "mcp-file-reader",
+                    "mcp-file-writer",
+                },
+                allow_dynamic_targets=True,
             ),
             event_sink=event_client.append,
             runtime_config_client=runtime_config_client,

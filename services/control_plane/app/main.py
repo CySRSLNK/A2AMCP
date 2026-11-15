@@ -88,7 +88,12 @@ def create_app(
     application.state.scenarios = ScenarioRegistry(
         loader=ScenarioLoader(
             allowed_agents={"root-agent", "worker-agent"},
-            allowed_mcp_servers={"mcp-tools", "mcp-resources", "mcp-file-reader"},
+            allowed_mcp_servers={
+                "mcp-tools",
+                "mcp-resources",
+                "mcp-file-reader",
+                "mcp-file-writer",
+            },
         )
     )
     for document in event_store.list_scenarios():

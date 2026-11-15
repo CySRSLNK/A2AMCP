@@ -149,7 +149,8 @@ def build_default_runtime_config() -> RuntimeConfig:
                 max_hop=int(os.getenv("ROOT_AGENT_MAX_HOP", "8")),
                 allowed_targets=_csv_env("ROOT_AGENT_ALLOWED_TARGETS", "worker-agent"),
                 allowed_mcp_servers=_csv_env(
-                    "ROOT_AGENT_ALLOWED_MCP_SERVERS", "mcp-tools,mcp-resources,mcp-file-reader"
+                    "ROOT_AGENT_ALLOWED_MCP_SERVERS",
+                    "mcp-tools,mcp-resources,mcp-file-reader,mcp-file-writer",
                 ),
                 allowed_tools=_csv_env("ROOT_AGENT_ALLOWED_TOOLS"),
             ),
@@ -157,10 +158,12 @@ def build_default_runtime_config() -> RuntimeConfig:
                 max_hop=int(os.getenv("WORKER_AGENT_MAX_HOP", "8")),
                 allowed_targets=_csv_env("WORKER_AGENT_ALLOWED_TARGETS", "worker-agent"),
                 allowed_mcp_servers=_csv_env(
-                    "WORKER_AGENT_ALLOWED_MCP_SERVERS", "mcp-tools,mcp-resources,mcp-file-reader"
+                    "WORKER_AGENT_ALLOWED_MCP_SERVERS",
+                    "mcp-tools,mcp-resources,mcp-file-reader,mcp-file-writer",
                 ),
                 allowed_tools=_csv_env(
-                    "WORKER_AGENT_ALLOWED_TOOLS", "calculator,fixture_http_get,read_file"
+                    "WORKER_AGENT_ALLOWED_TOOLS",
+                    "calculator,fixture_http_get,read_file,write_file",
                 ),
             ),
         },
@@ -182,6 +185,12 @@ def build_default_runtime_config() -> RuntimeConfig:
                 endpoint=os.getenv("MCP_FILE_READER_URL", "http://mcp-file-reader:8200"),
                 capabilities=["tools/list", "tools/call"],
                 allowed_tools=["read_file"],
+            ),
+            McpServerRuntimeConfig(
+                id="mcp-file-writer",
+                endpoint=os.getenv("MCP_FILE_WRITER_URL", "http://mcp-file-writer:8200"),
+                capabilities=["tools/list", "tools/call"],
+                allowed_tools=["write_file"],
             ),
         ],
         a2a_request_timeout=float(os.getenv("A2A_REQUEST_TIMEOUT", "300")),
@@ -231,22 +240,52 @@ class RuntimeConfigStore:
         defaults = build_default_runtime_config()
         existing_ids = {server.id for server in current.mcp_servers}
         additions = [server for server in defaults.mcp_servers if server.id not in existing_ids]
-        if not additions:
-            return
-
         agents = dict(current.agents)
+        available_ids = existing_ids | {server.id for server in additions}
+        agents_changed = False
         for agent_id, default_agent in defaults.agents.items():
             agent = agents.get(agent_id)
             if agent is None:
                 continue
-            if agent.allowed_mcp_servers == ["mcp-tools", "mcp-resources"]:
-                agents[agent_id] = agent.model_copy(
-                    update={"allowed_mcp_servers": [*agent.allowed_mcp_servers, "mcp-file-reader"]}
-                )
-            if agent_id == "worker-agent" and agent.allowed_tools == ["calculator", "fixture_http_get"]:
-                agents[agent_id] = agents[agent_id].model_copy(
-                    update={"allowed_tools": [*agent.allowed_tools, "read_file"]}
-                )
+            legacy_servers = {
+                "mcp-tools",
+                "mcp-resources",
+                "mcp-file-reader",
+            }
+            allowed_server_set = set(agent.allowed_mcp_servers)
+            if allowed_server_set == {"mcp-tools", "mcp-resources"} or allowed_server_set == legacy_servers:
+                missing_servers = [
+                    server_id
+                    for server_id in ("mcp-file-reader", "mcp-file-writer")
+                    if server_id in available_ids and server_id not in agent.allowed_mcp_servers
+                ]
+                if missing_servers:
+                    agents[agent_id] = agent.model_copy(
+                        update={"allowed_mcp_servers": [*agent.allowed_mcp_servers, *missing_servers]}
+                    )
+                    agents_changed = True
+            allowed_tool_set = set(agent.allowed_tools)
+            if agent_id == "worker-agent" and (
+                allowed_tool_set == {"calculator", "fixture_http_get"}
+                or allowed_tool_set == {"calculator", "fixture_http_get", "read_file"}
+            ):
+                missing_tools = [
+                    tool_name
+                    for tool_name in ("read_file", "write_file")
+                    if (
+                        (tool_name == "read_file" and "mcp-file-reader" in available_ids)
+                        or (tool_name == "write_file" and "mcp-file-writer" in available_ids)
+                    )
+                    and tool_name not in agent.allowed_tools
+                ]
+                if missing_tools:
+                    agents[agent_id] = agents[agent_id].model_copy(
+                        update={"allowed_tools": [*agent.allowed_tools, *missing_tools]}
+                    )
+                    agents_changed = True
+
+        if not additions and not agents_changed:
+            return
 
         migrated = current.model_copy(
             update={"mcp_servers": [*current.mcp_servers, *additions], "agents": agents}

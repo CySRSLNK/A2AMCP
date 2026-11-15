@@ -29,7 +29,7 @@ model = DynamicModelAdapter(
     )
 )
 default_targets = "worker-agent"
-default_tools = "calculator,fixture_http_get,read_file" if agent_id == "worker-agent" else ""
+default_tools = "calculator,fixture_http_get,read_file,write_file" if agent_id == "worker-agent" else ""
 runtime = AgentRuntime(
     agent_id=agent_id,
     model=model,
@@ -40,7 +40,8 @@ runtime = AgentRuntime(
     model_name=model_name,
     allowed_targets=_csv_env("AGENT_ALLOWED_TARGETS", default_targets),
     allowed_mcp_servers=_csv_env(
-        "AGENT_ALLOWED_MCP_SERVERS", "mcp-tools,mcp-resources,mcp-file-reader"
+        "AGENT_ALLOWED_MCP_SERVERS",
+        "mcp-tools,mcp-resources,mcp-file-reader,mcp-file-writer",
     ),
     allowed_tools=_csv_env("AGENT_ALLOWED_TOOLS", default_tools),
     event_sink=EventClient(

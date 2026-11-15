@@ -3,6 +3,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from .file_writer import write_file as write_fixture_file
+
 
 def list_tools(fixture_mode: str = "tools") -> list[dict]:
     if fixture_mode == "file-tools":
@@ -14,6 +16,22 @@ def list_tools(fixture_mode: str = "tools") -> list[dict]:
                     "type": "object",
                     "properties": {"path": {"type": "string"}},
                     "required": ["path"],
+                    "additionalProperties": False,
+                },
+            }
+        ]
+    if fixture_mode == "file-writer":
+        return [
+            {
+                "name": "write_file",
+                "description": "Write UTF-8 text to the isolated MCP file fixture.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "path": {"type": "string"},
+                        "content": {"type": "string"},
+                    },
+                    "required": ["path", "content"],
                     "additionalProperties": False,
                 },
             }
@@ -38,11 +56,16 @@ def call_tool(
     *,
     fixture_mode: str = "tools",
     file_root: str | Path | None = None,
+    max_bytes: int | None = None,
 ) -> dict:
     if fixture_mode == "file-tools":
         if name != "read_file":
             raise ValueError(f"unknown tool: {name}")
         return {"content": [{"type": "text", "text": _read_file(arguments, file_root)}]}
+    if fixture_mode == "file-writer":
+        if name != "write_file":
+            raise ValueError(f"unknown tool: {name}")
+        return write_fixture_file(arguments, file_root, max_bytes=max_bytes)
     if name == "calculator":
         operation = arguments.get("operation", "add")
         a = float(arguments.get("a", 0))

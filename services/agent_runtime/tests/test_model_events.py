@@ -166,3 +166,28 @@ def test_agent_prompt_treats_summary_and_translation_as_local_reasoning():
     system_message = model.requests[0].messages[0]["content"]
     assert "Summarization, translation, explanation, and synthesis" in system_message
     assert "answer them yourself" in system_message
+
+
+def test_agent_prompt_describes_file_writer_contract():
+    model = ScriptedModel()
+    runtime = AgentRuntime(
+        agent_id="worker-agent",
+        model=model,
+        a2a_client=None,
+        allowed_tools={"write_file"},
+    )
+
+    asyncio.run(
+        runtime.handle_task(
+            TaskInput(
+                run_id="66666666-6666-6666-6666-666666666666",
+                prompt="把结果写入 result.txt",
+                agent_id="worker-agent",
+            )
+        )
+    )
+
+    system_message = model.requests[0].messages[0]["content"]
+    assert 'write_file via server_id "mcp-file-writer"' in system_message
+    assert '"path":"relative/path.txt"' in system_message
+    assert '"content":"text"' in system_message

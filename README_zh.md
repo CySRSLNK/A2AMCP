@@ -37,7 +37,7 @@ RUN_REQUEST_TIMEOUT=600
 {"action":"answer","summary":"任务已完成。"}
 ```
 
-root agent 默认只能委派给 `worker-agent`，不能调用 MCP 工具；worker agent 可以继续委派，并允许调用 `calculator`、`fixture_http_get` 和 `mcp-file-reader` 的 `read_file`。未知 Agent、MCP server、工具、非法 JSON 和超出 hop 限制的决策都会被拒绝。
+root agent 默认只能委派给 `worker-agent`，不能调用 MCP 工具；worker agent 可以继续委派，并允许调用 `calculator`、`fixture_http_get`、`mcp-file-reader` 的 `read_file` 和 `mcp-file-writer` 的 `write_file`。未知 Agent、MCP server、工具、非法 JSON 和超出 hop 限制的决策都会被拒绝。
 
 读取文件的模型动作示例：
 
@@ -45,7 +45,13 @@ root agent 默认只能委派给 `worker-agent`，不能调用 MCP 工具；work
 {"action":"mcp_call","server_id":"mcp-file-reader","tool_name":"read_file","arguments":{"path":"example.txt"},"summary":"读取本地 fixture 文件。"}
 ```
 
+```json
+{"action":"mcp_call","server_id":"mcp-file-writer","tool_name":"write_file","arguments":{"path":"result.txt","content":"本地实验输出"},"summary":"写入本地 fixture 文件。"}
+```
+
 `mcp-file-reader` 只读挂载 `fixtures/file-reader`，`path` 必须是该目录内的相对路径。文件内容会作为不可信 MCP 数据返回，适合用来测试提示词注入和跨 Agent 传播；绝对路径、路径穿越、目录、非 UTF-8 文件和超出大小限制的文件会被拒绝。
+
+`mcp-file-writer` 单独挂载可写目录 `fixtures/file-writer`，提供 `write_file`。参数为相对 `path` 和字符串 `content`，只允许写入该目录，拒绝绝对路径、路径穿越、目录和超过 `MCP_FILE_WRITER_MAX_BYTES` 的内容，并使用原子替换避免产生半写入文件。返回值只包含相对路径和字节数，不返回完整文件内容。该服务不开放宿主机端口，仅用于本地写入边界实验。
 
 每个 Agent 收到任务后都会重新请求模型，由当前 Agent 自己选择 `answer`、`delegate` 或 `mcp_call`。因此实际链路可以是 `root-agent -> worker-agent -> mcp-tools`，也可以是 `root-agent -> worker-agent -> worker-agent -> mcp-tools`。运行时不会预先把 worker 固定为 MCP 调用者，只会执行模型返回且通过 allowlist 校验的动作。为了兼容部分 OpenAI-compatible 服务返回的字段别名，运行时也会把 `type/server/tool/target` 归一化为 `action/server_id/tool_name/target_agent`，未知字段仍会被拒绝。
 
@@ -139,7 +145,7 @@ Root Agent -> Worker Agent
               MCP Gateway
           /       |       \
          v        v        v
-     mcp-tools mcp-resources mcp-file-reader
+     mcp-tools mcp-resources mcp-file-reader mcp-file-writer
 ```
 
 各组件职责如下：
@@ -154,6 +160,7 @@ Root Agent -> Worker Agent
 | `mcp-tools` | 本地工具型 MCP fixture，包含 calculator 等工具 | Compose 内部 |
 | `mcp-resources` | 本地资源型 MCP fixture | Compose 内部 |
 | `mcp-file-reader` | 只读文件型 MCP fixture，提供 `read_file` | Compose 内部 |
+| `mcp-file-writer` | 隔离写文件型 MCP fixture，提供 `write_file` | Compose 内部 |
 | `postgres` | 保存运行、事件和场景元数据 | Compose 内部 |
 
 默认递归场景位于 `scenarios/recursive-a2a-mcp.yaml`。典型链路是：
@@ -266,6 +273,10 @@ scripts/destroy-run.sh RUN_ID
 | `MCP_RESOURCES_URL` | `http://mcp-resources:8200` | 默认资源 MCP 代理地址 |
 | `MCP_FILE_READER_URL` | `http://mcp-file-reader:8200` | 只读文件 MCP 代理地址 |
 | `MCP_FILE_MAX_BYTES` | `65536` | 单个文件允许返回的最大字节数 |
+| `MCP_FILE_WRITER_URL` | `http://mcp-file-writer:8200` | 写文件 MCP 代理地址 |
+| `MCP_FILE_WRITER_MAX_BYTES` | `65536` | 单次写入允许的最大字节数 |
+| `MCP_FILE_WRITER_UID` | `1000` | writer 绑定目录的宿主机用户 UID；服务器上按实际目录所有者调整 |
+| `MCP_FILE_WRITER_GID` | `1000` | writer 绑定目录的宿主机用户 GID；服务器上按实际目录所有者调整 |
 
 外部模型是可选配置。启用后，请确保模型服务只在你授权的范围内使用，并保留网关策略和事件记录。
 
