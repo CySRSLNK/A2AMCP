@@ -10,4 +10,6 @@ Use the fixture capabilities to study prompt injection and provenance handling w
 
 Replay creates a new logical run from retained response bodies. A missing or redacted body returns a non-replayable error and never causes an external request. Destroy a run and its payloads with `scripts/destroy-run.sh RUN_ID`.
 
+The local attack catalog is stored in `scenarios/attack-catalog.yaml`. It contains cross-MCP and A2A-to-MCP cases with source identifiers, typed event expectations, local fixture status, and detection oracles. `scripts/list-attacks.sh` and the web workbench read the catalog through the control-plane API. Catalog plans are read-only; descriptive-only cases are not claims that the current fixed topology can execute or verify the attack.
+
 The current MVP captures mediated protocol traffic. Unsupported A2A operations and direct-mode traffic are intentionally outside the complete capture path; use mediated mode when collecting evidence for a security finding.

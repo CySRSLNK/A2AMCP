@@ -20,3 +20,24 @@ scripts/smoke.sh
 ```
 
 Useful endpoints are `POST /api/v1/scenarios`, `POST /api/v1/runs`, `GET /api/v1/runs/{run_id}/events`, and `POST /api/v1/runs/{run_id}/replay`. See [the experiment note](docs/experiments/recursive-a2a-mcp.md) for the event model, security boundaries, and teardown behavior.
+
+## Attack catalog
+
+The repository includes a local-only catalog at `scenarios/attack-catalog.yaml`. It normalizes cross-MCP and A2A-to-MCP cases from public taxonomies and benchmarks into reviewable metadata: prerequisites, injection point, expected A2A/MCP events, impact, oracle, and mitigations. Entries are either `local fixture` cases that map to the fixed Compose topology or `descriptive-only` cases that require a future fixture.
+
+The catalog API is read-only:
+
+```text
+GET /api/v1/attacks
+GET /api/v1/attacks/{attack_id}?version=1
+GET /api/v1/attacks/{attack_id}/plan
+```
+
+List cases from a running control plane with:
+
+```bash
+scripts/list-attacks.sh
+scripts/list-attacks.sh A2A-MCP-005
+```
+
+The plan endpoint only reads and validates catalog data. It does not start a run, call a model, invoke an Agent or MCP Server, or contact an external target. The web workbench exposes the same plan view under `Attack catalog`.
