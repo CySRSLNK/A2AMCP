@@ -1,0 +1,29 @@
+id: recursive-a2a-mcp
+version: 1
+description: Root delegation through a worker chain followed by MCP tool and resource calls.
+agents:
+  - id: root-agent
+    role: root
+    endpoint: http://root-agent:9000
+    capabilities: [delegate, answer]
+  - id: worker-agent
+    role: worker
+    endpoint: http://worker-agent:9000
+    capabilities: [delegate, mcp, answer]
+mcp_servers:
+  - id: mcp-tools
+    endpoint: http://mcp-tools:9100/mcp
+    capabilities: [tools/list, tools/call]
+  - id: mcp-resources
+    endpoint: http://mcp-resources:9100/mcp
+    capabilities: [resources/read]
+policy_profile:
+  version: 1
+  max_hop: 3
+  allowed_targets: [root-agent, worker-agent]
+  allowed_tools: [calculator, fixture_http_get]
+  payload_limit: 1048576
+model_provider:
+  provider: mock
+  model: lab-demo
+fault_profile: {}

@@ -1,0 +1,37 @@
+:root { font-family: Inter, ui-sans-serif, system-ui, sans-serif; color: #edf2f7; background: #0d131a; font-synthesis: none; text-rendering: optimizeLegibility; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; background: #0d131a; }
+button, input, textarea, select { font: inherit; }
+button { cursor: pointer; }
+button:disabled, select:disabled, textarea:disabled { cursor: not-allowed; opacity: .55; }
+.app-shell { width: min(1500px, 100%); margin: 0 auto; padding: 28px clamp(18px, 4vw, 64px) 32px; }
+.topbar { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; border-bottom: 1px solid #26313d; padding-bottom: 22px; }
+.eyebrow { margin: 0 0 7px; color: #6dd6c1; font-size: 11px; font-weight: 700; letter-spacing: .14em; }
+h1 { margin: 0; font-size: clamp(28px, 4vw, 48px); line-height: 1; letter-spacing: 0; }
+.muted { color: #8391a1; font-size: 12px; }
+.status-chip { display: inline-flex; align-items: center; gap: 8px; border: 1px solid #334354; border-radius: 999px; padding: 8px 12px; color: #b7c2ce; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: #718096; }
+.status-chip.running .status-dot { background: #60d394; }.status-chip.failed .status-dot { background: #ec6f76; }
+.panel { border: 1px solid #293541; background: #121a23; border-radius: 7px; }
+.command-bar { display: grid; grid-template-columns: minmax(220px, .8fr) minmax(280px, 1.6fr) auto; gap: 16px; align-items: end; margin-top: 22px; padding: 16px; }
+.scenario-form, .prompt-field { display: grid; gap: 7px; color: #aeb9c5; font-size: 12px; font-weight: 650; }
+select, textarea { width: 100%; border: 1px solid #394958; border-radius: 5px; background: #0c1218; color: #edf2f7; padding: 10px 11px; outline: none; }
+textarea { min-height: 57px; resize: vertical; line-height: 1.4; }
+select:focus, textarea:focus { border-color: #6dd6c1; box-shadow: 0 0 0 2px #6dd6c133; }
+.primary-button, .quiet-button, .replay-controls button { border: 1px solid #5fcbb8; border-radius: 5px; background: #5fcbb8; color: #071014; padding: 10px 14px; font-size: 12px; font-weight: 750; white-space: nowrap; }
+.quiet-button { border-color: #3a4a58; background: transparent; color: #b8c5d0; padding: 7px 9px; justify-self: start; }
+.system-message { min-height: 18px; margin: 10px 2px 14px; color: #96a7b6; font-size: 12px; }
+.workspace-grid { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(300px, .8fr); gap: 16px; align-items: start; }
+.main-column, .side-column { display: grid; gap: 16px; min-width: 0; }
+.panel-heading { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid #293541; color: #d7e0e8; font-size: 13px; font-weight: 750; }
+.topology-row { display: flex; align-items: center; gap: 12px; min-height: 145px; padding: 22px 18px 10px; overflow-x: auto; }
+.node { min-width: 150px; border: 1px solid #344758; border-left: 3px solid #6dd6c1; border-radius: 5px; padding: 13px; background: #17222c; }.node.worker { border-left-color: #8bb8ff; }.node.tool { border-left-color: #efbd69; }
+.node strong, .node small { display: block; }.node strong { color: #edf2f7; font-size: 13px; }.node small { margin-top: 6px; color: #8391a1; font-size: 11px; }.edge { color: #6d7d8e; font-size: 10px; font-weight: 750; letter-spacing: .08em; }
+.topology-meta { border-top: 1px solid #202b35; padding: 10px 16px; color: #8391a1; font-size: 11px; }.count { display: inline-grid; min-width: 22px; place-items: center; border-radius: 999px; background: #23333d; color: #8fe1ce; font-size: 11px; padding: 3px 6px; }
+.timeline { max-height: 480px; overflow: auto; }.empty-state { padding: 28px 16px; color: #728291; font-size: 12px; line-height: 1.5; }
+.event-row { display: grid; grid-template-columns: 56px 36px minmax(120px, 1fr) minmax(80px, .7fr) 46px; gap: 10px; width: 100%; border: 0; border-bottom: 1px solid #202b35; background: transparent; color: #bfcbd6; padding: 11px 16px; text-align: left; font-size: 12px; }.event-row:hover, .event-row.selected { background: #1a2932; }
+.protocol { width: max-content; border-radius: 3px; padding: 3px 5px; font-size: 9px; font-weight: 800; letter-spacing: .05em; }.protocol-a2a { background: #1b4150; color: #76d9e0; }.protocol-mcp { background: #4b3c21; color: #f2c774; }.protocol-model { background: #352650; color: #c9a5f8; }.protocol-policy { background: #4a2d34; color: #f0a6ad; }
+.event-sequence, .event-hop { color: #718292; font-variant-numeric: tabular-nums; }.event-operation { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.event-agent { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #d5dde5; }
+.details { display: grid; gap: 0; margin: 0; padding: 4px 16px 12px; }.details div { display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px solid #202b35; padding: 9px 0; }.details dt { color: #7f8e9d; font-size: 11px; }.details dd { margin: 0; color: #d7e0e8; font-size: 11px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.payload { max-height: 260px; margin: 0 16px 16px; overflow: auto; border: 1px solid #293541; border-radius: 5px; background: #0b1117; padding: 12px; color: #a9d7c9; font-size: 10px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }.replay-controls { display: grid; gap: 10px; padding: 14px 16px 16px; }.replay-controls button { justify-self: start; }.footer-note { margin-top: 18px; color: #687887; font-size: 11px; }.footer-note strong { color: #9cabb8; font-weight: 600; }
+@media (max-width: 900px) { .command-bar, .workspace-grid { grid-template-columns: 1fr; }.primary-button { justify-self: start; }.side-column { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 620px) { .app-shell { padding: 18px 12px 24px; }.topbar { align-items: flex-start; flex-direction: column; }.side-column { grid-template-columns: 1fr; }.event-row { grid-template-columns: 50px 30px minmax(100px, 1fr) 54px; }.event-hop { display: none; }.topology-row { padding-left: 12px; } }

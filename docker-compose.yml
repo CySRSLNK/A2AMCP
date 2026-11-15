@@ -1,0 +1,174 @@
+name: a2a-mcp-lab
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-a2a_mcp_lab}
+      POSTGRES_USER: ${POSTGRES_USER:-lab}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lab-local-only}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks: [lab]
+
+  control-plane:
+    build:
+      context: .
+      dockerfile: services/control_plane/Dockerfile
+    environment:
+      SERVICE_NAME: control-plane
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://lab:lab-local-only@postgres:5432/a2a_mcp_lab}
+      GATEWAY_BASE_URL: ${GATEWAY_BASE_URL:-http://gateway:8001}
+      MODEL_PROVIDER: ${MODEL_PROVIDER:-mock}
+      MODEL_BASE_URL: ${MODEL_BASE_URL:-}
+      MODEL_API_KEY: ${MODEL_API_KEY:-}
+      ARTIFACT_ROOT: ${ARTIFACT_ROOT:-/var/lib/a2a-mcp/artifacts}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${LAB_BIND_HOST:-127.0.0.1}:8000:8000"
+    networks: [lab]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: "1.0"
+    pids_limit: 128
+    volumes:
+      - artifact-data:/var/lib/a2a-mcp/artifacts
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  gateway:
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    environment:
+      SERVICE_NAME: gateway
+      CONTROL_PLANE_URL: ${CONTROL_PLANE_URL:-http://control-plane:8000}
+      MODEL_BASE_URL: ${MODEL_BASE_URL:-}
+      MODEL_API_KEY: ${MODEL_API_KEY:-}
+    depends_on:
+      control-plane:
+        condition: service_started
+    networks: [lab]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: "1.0"
+    pids_limit: 128
+
+  root-agent:
+    build:
+      context: .
+      dockerfile: services/agent_runtime/Dockerfile
+    environment:
+      SERVICE_NAME: root-agent
+      AGENT_ID: root-agent
+      GATEWAY_BASE_URL: ${GATEWAY_BASE_URL:-http://gateway:8001}
+      MODEL_PROVIDER: ${MODEL_PROVIDER:-mock}
+    depends_on:
+      gateway:
+        condition: service_started
+    networks: [lab]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: "1.0"
+    pids_limit: 128
+
+  worker-agent:
+    build:
+      context: .
+      dockerfile: services/agent_runtime/Dockerfile
+    environment:
+      SERVICE_NAME: worker-agent
+      AGENT_ID: worker-agent
+      GATEWAY_BASE_URL: ${GATEWAY_BASE_URL:-http://gateway:8001}
+      MODEL_PROVIDER: ${MODEL_PROVIDER:-mock}
+    depends_on:
+      gateway:
+        condition: service_started
+    networks: [lab]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: "1.0"
+    pids_limit: 128
+
+  mcp-tools:
+    build:
+      context: .
+      dockerfile: services/mcp_fixtures/Dockerfile
+    environment:
+      SERVICE_NAME: mcp-tools
+      MCP_SERVER_ID: mcp-tools
+      MCP_FIXTURE_MODE: tools
+    networks: [lab]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    cpus: "0.5"
+    pids_limit: 64
+
+  mcp-resources:
+    build:
+      context: .
+      dockerfile: services/mcp_fixtures/Dockerfile
+    environment:
+      SERVICE_NAME: mcp-resources
+      MCP_SERVER_ID: mcp-resources
+      MCP_FIXTURE_MODE: resources
+    networks: [lab]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    cpus: "0.5"
+    pids_limit: 64
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    depends_on:
+      control-plane:
+        condition: service_started
+    ports:
+      - "${LAB_BIND_HOST:-127.0.0.1}:5173:5173"
+    networks: [lab]
+    mem_limit: 256m
+    cpus: "0.5"
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:5173/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres-data:
+  artifact-data:
+
+networks:
+  lab:
+    driver: bridge
