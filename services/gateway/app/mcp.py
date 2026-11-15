@@ -7,6 +7,7 @@ from typing import Any
 import httpx
 
 from shared.python.lab_core.contracts import CorrelationContext, EventDraft
+from shared.python.lab_core.mcp import McpRpcError
 
 from .policies import PolicyEngine
 from .transport import HttpTransport
@@ -102,7 +103,7 @@ class McpProxy:
             f"rpc-{rpc_id}:response",
         )
         if "error" in body:
-            raise RuntimeError(body["error"].get("message", "MCP request failed"))
+            raise McpRpcError(body["error"])
         return body["result"]
 
     def _emit(

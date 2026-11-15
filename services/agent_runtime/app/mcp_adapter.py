@@ -6,6 +6,7 @@ import httpx
 
 from shared.python.lab_core.correlation import context_headers
 from shared.python.lab_core.contracts import CorrelationContext
+from shared.python.lab_core.mcp import McpRpcError
 
 
 class GatewayMcpClient:
@@ -47,5 +48,5 @@ class GatewayMcpClient:
         response.raise_for_status()
         result = response.json()
         if "error" in result:
-            raise RuntimeError(result["error"].get("message", "MCP request failed"))
+            raise McpRpcError(result["error"])
         return result["result"]

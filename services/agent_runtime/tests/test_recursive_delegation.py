@@ -140,7 +140,7 @@ def test_toolless_agent_delegates_permission_refusal_to_worker():
     )
 
     assert result.status == "completed"
-    assert result.summary == "Delegate the task to worker-agent because the current agent has no MCP tool."
+    assert result.summary == "file contents"
     assert len(client.calls) == 1
     assert client.calls[0][0] == "worker-agent"
 

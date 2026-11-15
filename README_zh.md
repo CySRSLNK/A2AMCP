@@ -77,6 +77,8 @@ docker compose up -d --force-recreate mcp-file-reader mcp-file-writer
 
 每个 Agent 收到任务后都会重新请求模型，由当前 Agent 自己选择 `answer`、`delegate` 或 `mcp_call`。因此实际链路可以是 `root-agent -> worker-agent -> mcp-tools`，也可以是 `root-agent -> worker-agent -> worker-agent -> mcp-tools`。运行时不会预先把 worker 固定为 MCP 调用者，只会执行模型返回且通过 allowlist 校验的动作。为了兼容部分 OpenAI-compatible 服务返回的字段别名，运行时也会把 `type/server/tool/target` 归一化为 `action/server_id/tool_name/target_agent`，未知字段仍会被拒绝。
 
+MCP 返回的 JSON-RPC 错误（例如 `file does not exist`）会保留在 Event timeline 中，并作为 `isError: true` 的工具结果交回当前 Agent 的模型。模型决定采取允许的补救操作，或在最终回答中说明失败；重试仍受工具步数上限约束。子任务的结果和失败原因会逐级返回 root，最终显示在 Model output。连接失败、HTTP 错误和超时会返回失败任务，不再因未处理异常中断整条链路。修复此错误回传行为后，已有部署需执行 `docker compose up -d --build gateway root-agent worker-agent` 更新三个服务。
+
 真实模型推理可能超过默认的短 HTTP 等待时间。`MODEL_REQUEST_TIMEOUT` 控制单次模型请求，`A2A_REQUEST_TIMEOUT` 控制 Agent 委托，`MCP_REQUEST_TIMEOUT` 控制 MCP 请求，`RUN_REQUEST_TIMEOUT` 控制 Control Plane 等待整条链路；递归链路较长时应同时提高 A2A 和 run 超时。
 
 ## 快速启动

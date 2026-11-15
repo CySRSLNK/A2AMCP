@@ -9,6 +9,7 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from shared.python.lab_core.contracts import CorrelationContext, EventDraft, ModelRequest
+from shared.python.lab_core.mcp import McpRpcError
 
 from .model_proxy import ModelAdapter
 
@@ -207,8 +208,12 @@ class AgentRuntime:
                         decision.tool_name,
                         decision.arguments,
                     )
+                except McpRpcError as exc:
+                    result = {"isError": True, "error": exc.error}
                 except httpx.TimeoutException:
                     return TaskResult(status="failed", summary="MCP request timed out")
+                except httpx.HTTPError:
+                    return TaskResult(status="failed", summary="MCP request failed")
                 tool_history.append(
                     {
                         "server_id": decision.server_id,
@@ -243,9 +248,11 @@ class AgentRuntime:
                 child_result = await self.a2a_client.send(context, target_agent, child)
             except httpx.TimeoutException:
                 return TaskResult(status="failed", summary="A2A delegation request timed out")
+            except httpx.HTTPError:
+                return TaskResult(status="failed", summary="A2A delegation request failed")
             return TaskResult(
                 status=child_result.status,
-                summary=decision.summary,
+                summary=child_result.summary,
                 output=child_result.output,
                 child_task_id=child.task_id,
             )
@@ -479,6 +486,8 @@ class AgentRuntime:
             "When an allowed tool matches the requested operation, choose mcp_call instead of answering with instructions. "
             "Use an allowed tool directly before delegating unsupported work. "
             "Do not delegate an operation merely because another agent also has it. "
+            "An MCP result marked isError means that operation failed. Do not claim it succeeded or invent its output. "
+            "Choose an allowed corrective action if appropriate, otherwise explain the unresolved error in your answer. "
             "If the task requests an MCP or tool operation that is not in your allowed tool list, "
             "first complete any supported operations. Then delegate only the remaining unsupported work. "
             "When delegating after a tool call, treat completed tool results as already done and do not repeat them. "

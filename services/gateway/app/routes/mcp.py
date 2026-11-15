@@ -7,6 +7,7 @@ from fastapi import APIRouter, Header, HTTPException
 from fastapi.responses import JSONResponse
 
 from shared.python.lab_core.contracts import CorrelationContext
+from shared.python.lab_core.mcp import McpRpcError
 
 from ..mcp import McpProxy
 
@@ -48,6 +49,8 @@ def build_router(proxy: McpProxy) -> APIRouter:
                 result = await proxy.initialize(context, server_id)
             else:
                 raise ValueError(f"unsupported MCP operation: {method}")
+        except McpRpcError as exc:
+            return JSONResponse({"jsonrpc": "2.0", "id": request.get("id"), "error": exc.error})
         except (KeyError, ValueError, PermissionError, httpx.HTTPError) as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         return JSONResponse({"jsonrpc": "2.0", "id": request.get("id"), "result": result})
