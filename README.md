@@ -1,5 +1,7 @@
 # A2A to MCP Security Lab
 
+[中文文档](README_zh.md)
+
 This repository contains a local Docker Compose lab for studying recursive A2A delegation, MCP tools/resources, prompt injection, policy enforcement, and replay behavior. The default topology is a root agent, a worker agent, a gateway, two fixture MCP servers, a control plane, PostgreSQL, and a browser workbench.
 
 ## Start the scaffold
