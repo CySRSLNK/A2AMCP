@@ -15,6 +15,7 @@ def test_compose_declares_required_services_and_safe_defaults():
         "worker-agent:",
         "mcp-tools:",
         "mcp-resources:",
+        "mcp-file-reader:",
         "web:",
     ):
         assert service in compose

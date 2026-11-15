@@ -36,6 +36,44 @@ def test_runtime_config_store_masks_and_preserves_api_key(tmp_path: Path, monkey
     assert store.get_full_active()[1] == "secret-one"
 
 
+def test_default_runtime_config_registers_file_reader():
+    config = build_default_runtime_config()
+
+    reader = next(server for server in config.mcp_servers if server.id == "mcp-file-reader")
+
+    assert reader.endpoint == "http://mcp-file-reader:8200"
+    assert reader.capabilities == ["tools/list", "tools/call"]
+    assert reader.allowed_tools == ["read_file"]
+    assert "read_file" in config.agents["worker-agent"].allowed_tools
+
+
+def test_existing_runtime_config_migrates_new_file_reader_defaults(tmp_path: Path):
+    event_store = EventStore(f"sqlite:///{tmp_path / 'config.db'}")
+    store = RuntimeConfigStore(event_store)
+    current = store.get_active()
+    old_agents = dict(current.agents)
+    old_agents["root-agent"] = old_agents["root-agent"].model_copy(
+        update={"allowed_mcp_servers": ["mcp-tools", "mcp-resources"]}
+    )
+    old_agents["worker-agent"] = old_agents["worker-agent"].model_copy(
+        update={
+            "allowed_mcp_servers": ["mcp-tools", "mcp-resources"],
+            "allowed_tools": ["calculator", "fixture_http_get"],
+        }
+    )
+    old_config = current.model_copy(
+        update={"agents": old_agents, "mcp_servers": current.mcp_servers[:2]}
+    )
+    store.replace_active(old_config, expected_version=current.version)
+
+    migrated = RuntimeConfigStore(event_store).get_active()
+
+    assert migrated.version == current.version + 2
+    assert any(server.id == "mcp-file-reader" for server in migrated.mcp_servers)
+    assert "mcp-file-reader" in migrated.agents["worker-agent"].allowed_mcp_servers
+    assert "read_file" in migrated.agents["worker-agent"].allowed_tools
+
+
 def test_runtime_config_store_rejects_stale_version_and_unsafe_endpoint(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("CONFIG_ENCRYPTION_KEY", "2" * 43 + "=")
     store = RuntimeConfigStore(EventStore(f"sqlite:///{tmp_path / 'config.db'}"))

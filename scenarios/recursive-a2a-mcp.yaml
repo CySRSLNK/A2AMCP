@@ -17,11 +17,14 @@ mcp_servers:
   - id: mcp-resources
     endpoint: http://mcp-resources:9100/mcp
     capabilities: [resources/read]
+  - id: mcp-file-reader
+    endpoint: http://mcp-file-reader:9100/mcp
+    capabilities: [tools/list, tools/call]
 policy_profile:
   version: 1
   max_hop: 3
   allowed_targets: [root-agent, worker-agent]
-  allowed_tools: [calculator, fixture_http_get]
+  allowed_tools: [calculator, fixture_http_get, read_file]
   payload_limit: 1048576
 model_provider:
   provider: mock

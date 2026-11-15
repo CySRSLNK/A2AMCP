@@ -149,7 +149,7 @@ def build_default_runtime_config() -> RuntimeConfig:
                 max_hop=int(os.getenv("ROOT_AGENT_MAX_HOP", "8")),
                 allowed_targets=_csv_env("ROOT_AGENT_ALLOWED_TARGETS", "worker-agent"),
                 allowed_mcp_servers=_csv_env(
-                    "ROOT_AGENT_ALLOWED_MCP_SERVERS", "mcp-tools,mcp-resources"
+                    "ROOT_AGENT_ALLOWED_MCP_SERVERS", "mcp-tools,mcp-resources,mcp-file-reader"
                 ),
                 allowed_tools=_csv_env("ROOT_AGENT_ALLOWED_TOOLS"),
             ),
@@ -157,10 +157,10 @@ def build_default_runtime_config() -> RuntimeConfig:
                 max_hop=int(os.getenv("WORKER_AGENT_MAX_HOP", "8")),
                 allowed_targets=_csv_env("WORKER_AGENT_ALLOWED_TARGETS", "worker-agent"),
                 allowed_mcp_servers=_csv_env(
-                    "WORKER_AGENT_ALLOWED_MCP_SERVERS", "mcp-tools,mcp-resources"
+                    "WORKER_AGENT_ALLOWED_MCP_SERVERS", "mcp-tools,mcp-resources,mcp-file-reader"
                 ),
                 allowed_tools=_csv_env(
-                    "WORKER_AGENT_ALLOWED_TOOLS", "calculator,fixture_http_get"
+                    "WORKER_AGENT_ALLOWED_TOOLS", "calculator,fixture_http_get,read_file"
                 ),
             ),
         },
@@ -176,6 +176,12 @@ def build_default_runtime_config() -> RuntimeConfig:
                 endpoint=os.getenv("MCP_RESOURCES_URL", "http://mcp-resources:8200"),
                 capabilities=["resources/read"],
                 allowed_tools=[],
+            ),
+            McpServerRuntimeConfig(
+                id="mcp-file-reader",
+                endpoint=os.getenv("MCP_FILE_READER_URL", "http://mcp-file-reader:8200"),
+                capabilities=["tools/list", "tools/call"],
+                allowed_tools=["read_file"],
             ),
         ],
         a2a_request_timeout=float(os.getenv("A2A_REQUEST_TIMEOUT", "300")),
@@ -201,7 +207,9 @@ class RuntimeConfigStore:
 
     def _ensure_active(self) -> None:
         with self._session_factory.begin() as session:
-            if session.get(RuntimeConfigRecord, _CONFIG_ID) is not None:
+            row = session.get(RuntimeConfigRecord, _CONFIG_ID)
+            if row is not None:
+                self._migrate_builtin_mcp(session, row)
                 return
             config = build_default_runtime_config()
             api_key = os.getenv("MODEL_API_KEY", "")
@@ -214,6 +222,49 @@ class RuntimeConfigStore:
                     encrypted_api_key=encrypted,
                 )
             )
+
+    def _migrate_builtin_mcp(self, session, row: RuntimeConfigRecord) -> None:
+        """Add newly shipped fixture MCPs without widening custom policies unexpectedly."""
+        document = deepcopy(row.document)
+        document["version"] = row.version
+        current = RuntimeConfig.model_validate(document)
+        defaults = build_default_runtime_config()
+        existing_ids = {server.id for server in current.mcp_servers}
+        additions = [server for server in defaults.mcp_servers if server.id not in existing_ids]
+        if not additions:
+            return
+
+        agents = dict(current.agents)
+        for agent_id, default_agent in defaults.agents.items():
+            agent = agents.get(agent_id)
+            if agent is None:
+                continue
+            if agent.allowed_mcp_servers == ["mcp-tools", "mcp-resources"]:
+                agents[agent_id] = agent.model_copy(
+                    update={"allowed_mcp_servers": [*agent.allowed_mcp_servers, "mcp-file-reader"]}
+                )
+            if agent_id == "worker-agent" and agent.allowed_tools == ["calculator", "fixture_http_get"]:
+                agents[agent_id] = agents[agent_id].model_copy(
+                    update={"allowed_tools": [*agent.allowed_tools, "read_file"]}
+                )
+
+        migrated = current.model_copy(
+            update={"mcp_servers": [*current.mcp_servers, *additions], "agents": agents}
+        )
+        new_version = row.version + 1
+        row.version = new_version
+        row.document = migrated.model_copy(update={"version": new_version}).model_dump(mode="json")
+        row.document.pop("version", None)
+        row.updated_at = datetime.now(timezone.utc)
+        session.add(
+            ConfigAuditRecord(
+                id=str(uuid4()),
+                version=new_version,
+                action="migration",
+                changed_fields=["agents", "mcp_servers"],
+                api_key_set=row.encrypted_api_key is not None,
+            )
+        )
 
     def get_active(self) -> RuntimeConfig:
         with self._session_factory() as session:

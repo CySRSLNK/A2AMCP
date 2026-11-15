@@ -8,7 +8,7 @@ from shared.python.lab_core.attack_catalog import AttackCase, AttackCatalog, Att
 FIXTURE_TOPOLOGIES: dict[str, dict[str, Any]] = {
     "recursive-a2a-mcp": {
         "agents": {"root-agent", "worker-agent"},
-        "mcp_servers": {"mcp-tools", "mcp-resources"},
+        "mcp_servers": {"mcp-tools", "mcp-resources", "mcp-file-reader"},
         "capabilities": {"message/send", "tools/list", "tools/call", "resources/read"},
         "policy": {"max_hop": 3},
     }

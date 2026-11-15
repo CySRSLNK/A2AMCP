@@ -29,7 +29,7 @@ model = DynamicModelAdapter(
     )
 )
 default_targets = "worker-agent"
-default_tools = "calculator,fixture_http_get" if agent_id == "worker-agent" else ""
+default_tools = "calculator,fixture_http_get,read_file" if agent_id == "worker-agent" else ""
 runtime = AgentRuntime(
     agent_id=agent_id,
     model=model,
@@ -39,7 +39,9 @@ runtime = AgentRuntime(
     model_provider=model_provider,
     model_name=model_name,
     allowed_targets=_csv_env("AGENT_ALLOWED_TARGETS", default_targets),
-    allowed_mcp_servers=_csv_env("AGENT_ALLOWED_MCP_SERVERS", "mcp-tools,mcp-resources"),
+    allowed_mcp_servers=_csv_env(
+        "AGENT_ALLOWED_MCP_SERVERS", "mcp-tools,mcp-resources,mcp-file-reader"
+    ),
     allowed_tools=_csv_env("AGENT_ALLOWED_TOOLS", default_tools),
     event_sink=EventClient(
         os.getenv("CONTROL_PLANE_URL", "http://control-plane:8000")

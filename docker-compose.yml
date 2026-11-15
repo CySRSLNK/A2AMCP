@@ -32,6 +32,7 @@ services:
       CONTROL_PLANE_INTERNAL_TOKEN: ${CONTROL_PLANE_INTERNAL_TOKEN:-lab-internal-dev-token}
       MCP_TOOLS_URL: ${MCP_TOOLS_URL:-http://mcp-tools:8200}
       MCP_RESOURCES_URL: ${MCP_RESOURCES_URL:-http://mcp-resources:8200}
+      MCP_FILE_READER_URL: ${MCP_FILE_READER_URL:-http://mcp-file-reader:8200}
       RUN_REQUEST_TIMEOUT: ${RUN_REQUEST_TIMEOUT:-600}
       ARTIFACT_ROOT: ${ARTIFACT_ROOT:-/var/lib/a2a-mcp/artifacts}
     depends_on:
@@ -67,6 +68,9 @@ services:
       CONTROL_PLANE_INTERNAL_TOKEN: ${CONTROL_PLANE_INTERNAL_TOKEN:-lab-internal-dev-token}
       A2A_REQUEST_TIMEOUT: ${A2A_REQUEST_TIMEOUT:-300}
       MCP_REQUEST_TIMEOUT: ${MCP_REQUEST_TIMEOUT:-60}
+      MCP_TOOLS_URL: ${MCP_TOOLS_URL:-http://mcp-tools:8200}
+      MCP_RESOURCES_URL: ${MCP_RESOURCES_URL:-http://mcp-resources:8200}
+      MCP_FILE_READER_URL: ${MCP_FILE_READER_URL:-http://mcp-file-reader:8200}
       MODEL_REQUEST_TIMEOUT: ${MODEL_REQUEST_TIMEOUT:-120}
     depends_on:
       control-plane:
@@ -95,7 +99,7 @@ services:
       MCP_REQUEST_TIMEOUT: ${MCP_REQUEST_TIMEOUT:-60}
       AGENT_MAX_HOP: ${ROOT_AGENT_MAX_HOP:-8}
       AGENT_ALLOWED_TARGETS: ${ROOT_AGENT_ALLOWED_TARGETS:-worker-agent}
-      AGENT_ALLOWED_MCP_SERVERS: ${ROOT_AGENT_ALLOWED_MCP_SERVERS:-mcp-tools,mcp-resources}
+      AGENT_ALLOWED_MCP_SERVERS: ${ROOT_AGENT_ALLOWED_MCP_SERVERS:-mcp-tools,mcp-resources,mcp-file-reader}
       AGENT_ALLOWED_TOOLS: ${ROOT_AGENT_ALLOWED_TOOLS:-}
     depends_on:
       gateway:
@@ -124,8 +128,8 @@ services:
       MCP_REQUEST_TIMEOUT: ${MCP_REQUEST_TIMEOUT:-60}
       AGENT_MAX_HOP: ${WORKER_AGENT_MAX_HOP:-8}
       AGENT_ALLOWED_TARGETS: ${WORKER_AGENT_ALLOWED_TARGETS:-worker-agent}
-      AGENT_ALLOWED_MCP_SERVERS: ${WORKER_AGENT_ALLOWED_MCP_SERVERS:-mcp-tools,mcp-resources}
-      AGENT_ALLOWED_TOOLS: ${WORKER_AGENT_ALLOWED_TOOLS:-calculator,fixture_http_get}
+      AGENT_ALLOWED_MCP_SERVERS: ${WORKER_AGENT_ALLOWED_MCP_SERVERS:-mcp-tools,mcp-resources,mcp-file-reader}
+      AGENT_ALLOWED_TOOLS: ${WORKER_AGENT_ALLOWED_TOOLS:-calculator,fixture_http_get,read_file}
     depends_on:
       gateway:
         condition: service_started
@@ -163,6 +167,27 @@ services:
       SERVICE_NAME: mcp-resources
       MCP_SERVER_ID: mcp-resources
       MCP_FIXTURE_MODE: resources
+    networks: [lab]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    cpus: "0.5"
+    pids_limit: 64
+
+  mcp-file-reader:
+    build:
+      context: .
+      dockerfile: services/mcp_fixtures/Dockerfile
+    environment:
+      SERVICE_NAME: mcp-file-reader
+      MCP_SERVER_ID: mcp-file-reader
+      MCP_FIXTURE_MODE: file-tools
+      MCP_FILE_ROOT: /var/lib/a2a-mcp/files
+      MCP_FILE_MAX_BYTES: ${MCP_FILE_MAX_BYTES:-65536}
+    volumes:
+      - ./fixtures/file-reader:/var/lib/a2a-mcp/files:ro
     networks: [lab]
     read_only: true
     tmpfs: [/tmp]

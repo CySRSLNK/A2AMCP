@@ -2,7 +2,7 @@
 
 [中文文档](README_zh.md)
 
-This repository contains a local Docker Compose lab for studying recursive A2A delegation, MCP tools/resources, prompt injection, policy enforcement, and replay behavior. The default topology is a root agent, a worker agent, a gateway, two fixture MCP servers, a control plane, PostgreSQL, and a browser workbench.
+This repository contains a local Docker Compose lab for studying recursive A2A delegation, MCP tools/resources, prompt injection, policy enforcement, and replay behavior. The default topology is a root agent, a worker agent, a gateway, three fixture MCP servers, a control plane, PostgreSQL, and a browser workbench.
 
 ## Start the scaffold
 
@@ -58,10 +58,16 @@ The model must return one JSON action. The agent runtime validates the action be
 ```
 
 ```json
+{"action":"mcp_call","server_id":"mcp-file-reader","tool_name":"read_file","arguments":{"path":"example.txt"},"summary":"Read the local fixture file."}
+```
+
+```json
 {"action":"answer","summary":"The task is complete."}
 ```
 
-The root agent is allowed to delegate to `worker-agent` and has no MCP tools by default. The worker agent can delegate recursively and use `calculator` or `fixture_http_get`. Invalid JSON, unknown agents, unknown MCP servers, disallowed tools, and excessive hop depth fail closed.
+The root agent is allowed to delegate to `worker-agent` and has no MCP tools by default. The worker agent can delegate recursively and use `calculator`, `fixture_http_get`, or the isolated `read_file` tool on `mcp-file-reader`. Invalid JSON, unknown agents, unknown MCP servers, disallowed tools, and excessive hop depth fail closed.
+
+The `mcp-file-reader` fixture reads UTF-8 files from the read-only `fixtures/file-reader` directory. Its `read_file` tool accepts a relative `path` and returns the file text as MCP content. Absolute paths, path traversal, directories, non-UTF-8 files, and files larger than `MCP_FILE_MAX_BYTES` are rejected. The returned text is untrusted data and should be treated as a prompt-injection test input.
 
 Each agent makes a fresh model decision when it receives a task, so the runtime can produce `root-agent -> worker-agent -> mcp-tools` or `root-agent -> worker-agent -> worker-agent -> mcp-tools` depending on the model output. The runtime accepts the canonical fields `action`, `target_agent`, `server_id`, and `tool_name`, and normalizes common provider aliases `type`, `target`, `server`, and `tool` before applying the same allowlist validation. The timeout variables above keep slower recursive model calls from being cut off by an intermediate HTTP hop.
 

@@ -6,7 +6,7 @@ from .resources import read_resource
 from .tools import call_tool, list_tools
 
 
-def handle_message(fixture_mode: str, request: dict) -> dict:
+def handle_message(fixture_mode: str, request: dict, *, file_root: str | None = None) -> dict:
     method = request.get("method")
     params = request.get("params", {})
     try:
@@ -14,15 +14,20 @@ def handle_message(fixture_mode: str, request: dict) -> dict:
             result = {
                 "protocolVersion": "2025-06-18",
                 "capabilities": {
-                    "tools": {} if fixture_mode == "tools" else None,
+                    "tools": {} if fixture_mode in {"tools", "file-tools"} else None,
                     "resources": {} if fixture_mode == "resources" else None,
                 },
                 "serverInfo": {"name": f"{fixture_mode}-fixture", "version": "0.1.0"},
             }
-        elif method == "tools/list" and fixture_mode == "tools":
-            result = {"tools": list_tools()}
-        elif method == "tools/call" and fixture_mode == "tools":
-            result = call_tool(params["name"], params.get("arguments", {}))
+        elif method == "tools/list" and fixture_mode in {"tools", "file-tools"}:
+            result = {"tools": list_tools(fixture_mode)}
+        elif method == "tools/call" and fixture_mode in {"tools", "file-tools"}:
+            result = call_tool(
+                params["name"],
+                params.get("arguments", {}),
+                fixture_mode=fixture_mode,
+                file_root=file_root,
+            )
         elif method == "resources/read" and fixture_mode == "resources":
             result = read_resource(params["uri"])
         else:
@@ -42,6 +47,7 @@ def handle_message(fixture_mode: str, request: dict) -> dict:
 
 def create_app(mode: str | None = None) -> FastAPI:
     fixture_mode = mode or os.getenv("MCP_FIXTURE_MODE", "unconfigured")
+    file_root = os.getenv("MCP_FILE_ROOT", "/var/lib/a2a-mcp/files")
     application = FastAPI(title="A2A MCP Lab Fixture MCP Server", version="0.1.0")
 
     @application.get("/healthz")
@@ -54,7 +60,7 @@ def create_app(mode: str | None = None) -> FastAPI:
 
     @application.post("/mcp")
     def mcp(request: dict) -> dict:
-        return handle_message(fixture_mode, request)
+        return handle_message(fixture_mode, request, file_root=file_root)
 
     return application
 
