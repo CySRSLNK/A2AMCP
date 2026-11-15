@@ -61,31 +61,48 @@ def test_runnable_a2a_events_match_gateway_proxy():
     assert case is not None
 
     events = []
+    requested_urls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requested_urls.append(str(request.url))
+        return httpx.Response(
+            200, json={"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
+        )
+
     proxy = A2AProxy(
         {"root-agent": "http://root:8100", "worker-agent": "http://worker:8100"},
-        transport=HttpTransport(
-            httpx.MockTransport(
-                lambda _: httpx.Response(
-                    200, json={"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
-                )
-            )
-        ),
+        transport=HttpTransport(httpx.MockTransport(handler)),
         event_sink=events.append,
     )
 
-    for expected in case.expected_events[:3]:
+    expected_chain = [
+        ("control-plane", "root-agent"),
+        ("root-agent", "worker-agent"),
+        ("worker-agent", "worker-agent"),
+    ]
+    for actor, target in expected_chain:
         context = CorrelationContext(
-            run_id=uuid4(), request_id=f"catalog-{expected.actor}", agent_id=expected.actor
+            run_id=uuid4(), request_id=f"catalog-{actor}", agent_id=actor
         )
         asyncio.run(
             proxy.forward_send(
                 context,
                 {"jsonrpc": "2.0", "id": 1, "method": "message/send"},
-                expected.target or "worker-agent",
+                target,
             )
         )
-        assert events[-2].operation == expected.operation
-        assert events[-2].context.agent_id == expected.actor
+
+    requests = [event for event in events if event.direction == "outbound"]
+    assert [event.operation for event in requests] == ["message/send.request"] * 3
+    assert [event.context.agent_id for event in requests] == [actor for actor, _ in expected_chain]
+    assert requested_urls == [
+        "http://root:8100/a2a",
+        "http://worker:8100/a2a",
+        "http://worker:8100/a2a",
+    ]
+    assert [
+        (event.operation, event.actor, event.target) for event in case.expected_events[:3]
+    ] == [("message/send.request", actor, target) for actor, target in expected_chain]
 
 
 def test_registry_rejects_unknown_runnable_fixture():
@@ -111,9 +128,17 @@ def test_registry_rejects_unavailable_runnable_capability():
 def test_registry_rejects_runnable_event_outside_fixture_topology():
     document = load_seed()
     runnable = next(case for case in document["cases"] if case["runnable"])
-    runnable["expected_events"][0]["target"] = "public-prod"
+    runnable["expected_events"][0]["target"] = "mcp-tools"
 
     with pytest.raises(ValueError, match="unavailable a2a target"):
+        AttackCatalogRegistry().import_document(document)
+
+
+def test_registry_rejects_external_event_node_in_descriptive_case():
+    document = load_seed()
+    document["cases"][0]["expected_events"][0]["target"] = "public-prod"
+
+    with pytest.raises(ValueError, match="external event target"):
         AttackCatalogRegistry().import_document(document)
 
 

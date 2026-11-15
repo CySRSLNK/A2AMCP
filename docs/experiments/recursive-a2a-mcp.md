@@ -14,4 +14,6 @@ The local attack catalog is stored in `scenarios/attack-catalog.yaml`. It contai
 
 Event expectations use the lab's observable contract: A2A request events are named `message/send.request`, and `actor` is the `CorrelationContext.agent_id` that emitted the gateway event. `target` records the route selected by the proxy, so a runnable chain starts with `control-plane -> root-agent` before delegated agent hops.
 
+The loader only accepts observable gateway operation names, and the control plane rejects event nodes outside the fixed Compose topology. Runnable entries additionally require their agents, MCP servers, capabilities, policy, and event directions to match the registered fixture.
+
 The current MVP captures mediated protocol traffic. Unsupported A2A operations and direct-mode traffic are intentionally outside the complete capture path; use mediated mode when collecting evidence for a security finding.

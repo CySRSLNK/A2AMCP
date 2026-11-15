@@ -95,10 +95,13 @@ def test_loader_rejects_external_url_or_command_text():
             {"destination": "https://evil.test"}
         ),
         lambda case: case["expected_events"][0].update({"target": "file:///etc/passwd"}),
-        lambda case: case["expected_events"][0].update({"operation": "bash -c id"}),
+        lambda case: case["expected_events"][0].update({"actor": "bash -c id"}),
         lambda case: case.update({"dry_run_prompt": "python -c 'print(1)'"}),
         lambda case: case.update({"dry_run_prompt": "javascript:alert(1)"}),
         lambda case: case.update({"dry_run_prompt": "nc 10.0.0.1 80"}),
+        lambda case: case.update({"dry_run_prompt": "ssh://evil.test"}),
+        lambda case: case.update({"dry_run_prompt": "tcp://10.0.0.1:80"}),
+        lambda case: case.update({"dry_run_prompt": "http%3A%2F%2Fevil.test"}),
     ],
 )
 def test_loader_rejects_unsafe_nested_text(mutate):
@@ -114,5 +117,17 @@ def test_loader_rejects_malformed_event_expectation():
     case["expected_events"][0]["protocol"] = "policy"
 
     with pytest.raises(ValueError, match="invalid attack catalog"):
+        AttackCatalogLoader().load({"version": 1, "cases": [case]})
+
+
+@pytest.mark.parametrize(
+    "protocol, operation",
+    [("a2a", "message/send"), ("mcp", "mcp/not-real")],
+)
+def test_loader_rejects_unobservable_event_operation(protocol, operation):
+    case = valid_case()
+    case["expected_events"][0].update({"protocol": protocol, "operation": operation})
+
+    with pytest.raises(ValueError, match="unsupported observable"):
         AttackCatalogLoader().load({"version": 1, "cases": [case]})
 

@@ -29,10 +29,23 @@ class AttackCatalogRegistry:
     def import_document(self, document: dict[str, Any]) -> AttackCatalog:
         catalog = self.loader.load(document)
         for case in catalog.cases:
+            self._validate_event_nodes(case)
             if case.runnable:
                 self._validate_runnable_fixture(case)
         self.catalog = catalog
         return catalog
+
+    def _validate_event_nodes(self, case: AttackCase) -> None:
+        known_nodes = {"control-plane"}
+        for topology in self.fixture_topologies.values():
+            known_nodes.update(topology.get("agents", set()))
+            known_nodes.update(topology.get("mcp_servers", set()))
+        for event in case.expected_events:
+            for role, node in (("actor", event.actor), ("target", event.target)):
+                if node is not None and node not in known_nodes:
+                    raise ValueError(
+                        f"attack case {case.id} has external event {role}: {node}"
+                    )
 
     def _validate_runnable_fixture(self, case: AttackCase) -> None:
         assert case.fixture_scenario_id is not None

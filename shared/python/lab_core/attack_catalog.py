@@ -13,13 +13,21 @@ Direction = Literal["inbound", "outbound"]
 ExpectedDecision = Literal["allow", "deny", "approval_required", "descriptive"]
 
 _UNSAFE_TEXT_PATTERNS = (
-    re.compile(r"\b(?:https?|ftp|file)://", re.IGNORECASE),
+    re.compile(r"\b[a-z][a-z0-9+.-]{1,31}://", re.IGNORECASE),
+    re.compile(r"\b[a-z][a-z0-9+.-]{1,31}%3a%2f%2f", re.IGNORECASE),
+    re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?\b"),
     re.compile(r"\b(?:rm\s+-rf|curl\s|wget\s|bash\s+-c|sh\s+-c|powershell(?:\.exe)?\s)", re.IGNORECASE),
     re.compile(r"\b(?:python(?:3)?|node)\s+-c\b", re.IGNORECASE),
     re.compile(r"\b(?:nc|netcat)\s+(?:\d{1,3}\.){3}\d{1,3}\b", re.IGNORECASE),
     re.compile(r"\b(?:javascript|data):", re.IGNORECASE),
     re.compile(r"\bBearer\s+[A-Za-z0-9._-]+", re.IGNORECASE),
     re.compile(r"\b(?:api[_-]?key|password|secret)\s*[:=]", re.IGNORECASE),
+)
+_A2A_EVENT_OPERATION = re.compile(
+    r"^(?:message/send|tasks/get|tasks/cancel)\.(?:request|response)$"
+)
+_MCP_EVENT_OPERATION = re.compile(
+    r"^(?:tools/list|resources/read|tools/call:[A-Za-z0-9][A-Za-z0-9._-]{0,63})$"
 )
 
 
@@ -89,6 +97,15 @@ class EventExpectation(BaseModel):
     target: str | None = Field(default=None, max_length=128)
     relation: Literal["required", "optional"] = "required"
     min_count: int = Field(default=1, ge=0, le=100)
+
+    @model_validator(mode="after")
+    def validate_operation(self) -> "EventExpectation":
+        pattern = _A2A_EVENT_OPERATION if self.protocol == "a2a" else _MCP_EVENT_OPERATION
+        if pattern.fullmatch(self.operation) is None:
+            raise ValueError(
+                f"unsupported observable {self.protocol} event operation: {self.operation}"
+            )
+        return self
 
 
 class Oracle(BaseModel):
