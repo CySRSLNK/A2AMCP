@@ -11,9 +11,16 @@ from .planner import TaskInput, TaskResult
 
 
 class A2AClient:
-    def __init__(self, gateway_base_url: str, *, transport: httpx.AsyncBaseTransport | None = None):
+    def __init__(
+        self,
+        gateway_base_url: str,
+        *,
+        transport: httpx.AsyncBaseTransport | None = None,
+        timeout: float = 300.0,
+    ):
         self.gateway_base_url = gateway_base_url.rstrip("/")
         self.transport = transport
+        self.timeout = timeout
 
     async def send(
         self, context: CorrelationContext, target_agent: str, task: TaskInput
@@ -24,7 +31,7 @@ class A2AClient:
             "method": "message/send",
             "params": task.model_dump(mode="json"),
         }
-        async with httpx.AsyncClient(transport=self.transport, timeout=30.0) as client:
+        async with httpx.AsyncClient(transport=self.transport, timeout=self.timeout) as client:
             response = await client.post(
                 f"{self.gateway_base_url}/a2a/{target_agent}",
                 headers=context_headers(context),

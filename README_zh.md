@@ -15,6 +15,10 @@ MODEL_PROVIDER=openai-compatible
 MODEL_NAME=your-model
 MODEL_BASE_URL=http://model-service:8000
 MODEL_API_KEY=your-key
+MODEL_REQUEST_TIMEOUT=120
+A2A_REQUEST_TIMEOUT=300
+MCP_REQUEST_TIMEOUT=60
+RUN_REQUEST_TIMEOUT=600
 ```
 
 `MODEL_BASE_URL` 必须是 gateway 容器可以访问的模型服务地址。Docker Desktop 通常可以使用 `host.docker.internal` 访问宿主机上的模型服务；Linux 环境需要让模型服务加入同一个 Docker 网络，或额外配置宿主机映射。
@@ -34,6 +38,10 @@ MODEL_API_KEY=your-key
 ```
 
 root agent 默认只能委派给 `worker-agent`，不能调用 MCP 工具；worker agent 可以继续委派，并允许调用 `calculator` 和 `fixture_http_get`。未知 Agent、MCP server、工具、非法 JSON 和超出 hop 限制的决策都会被拒绝。
+
+每个 Agent 收到任务后都会重新请求模型，由当前 Agent 自己选择 `answer`、`delegate` 或 `mcp_call`。因此实际链路可以是 `root-agent -> worker-agent -> mcp-tools`，也可以是 `root-agent -> worker-agent -> worker-agent -> mcp-tools`。运行时不会预先把 worker 固定为 MCP 调用者，只会执行模型返回且通过 allowlist 校验的动作。为了兼容部分 OpenAI-compatible 服务返回的字段别名，运行时也会把 `type/server/tool/target` 归一化为 `action/server_id/tool_name/target_agent`，未知字段仍会被拒绝。
+
+真实模型推理可能超过默认的短 HTTP 等待时间。`MODEL_REQUEST_TIMEOUT` 控制单次模型请求，`A2A_REQUEST_TIMEOUT` 控制 Agent 委托，`MCP_REQUEST_TIMEOUT` 控制 MCP 请求，`RUN_REQUEST_TIMEOUT` 控制 Control Plane 等待整条链路；递归链路较长时应同时提高 A2A 和 run 超时。
 
 ## 快速启动
 
@@ -198,8 +206,13 @@ scripts/destroy-run.sh RUN_ID
 | --- | --- | --- |
 | `LAB_BIND_HOST` | `127.0.0.1` | Web 和 API 的绑定地址 |
 | `MODEL_PROVIDER` | `mock` | 默认使用确定性 mock 模型 |
+| `MODEL_NAME` | `lab-agent` | 发送给模型服务的模型名称 |
 | `MODEL_BASE_URL` | 空 | 可选的模型服务地址 |
 | `MODEL_API_KEY` | 空 | 可选的模型服务凭据 |
+| `MODEL_REQUEST_TIMEOUT` | `120` | 单次模型请求超时时间（秒） |
+| `A2A_REQUEST_TIMEOUT` | `300` | Gateway 转发 Agent 请求超时时间（秒） |
+| `MCP_REQUEST_TIMEOUT` | `60` | MCP 请求超时时间（秒） |
+| `RUN_REQUEST_TIMEOUT` | `600` | Control Plane 等待整条运行链路的超时时间（秒） |
 | `DATABASE_URL` | Compose PostgreSQL | Control Plane 数据库连接 |
 | `GATEWAY_BASE_URL` | `http://gateway:8001` | Agent 使用的网关地址 |
 

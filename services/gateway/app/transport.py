@@ -10,7 +10,7 @@ from shared.python.lab_core.contracts import CorrelationContext
 
 
 class HttpTransport:
-    def __init__(self, transport: httpx.AsyncBaseTransport | None = None, timeout: float = 10.0):
+    def __init__(self, transport: httpx.AsyncBaseTransport | None = None, timeout: float = 300.0):
         self.transport = transport
         self.timeout = timeout
 

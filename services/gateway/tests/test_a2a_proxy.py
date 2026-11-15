@@ -60,6 +60,10 @@ def test_proxy_emits_before_and_after_events():
     assert all(event.context.request_id == "req-1" for event in events)
 
 
+def test_http_transport_default_allows_slow_model_agent_hops():
+    assert HttpTransport().timeout == 300.0
+
+
 def test_proxy_rejects_unsupported_operation():
     proxy = A2AProxy({"worker": "http://worker:8100"}, transport=HttpTransport(httpx.MockTransport(lambda _: None)))
     ctx = CorrelationContext(run_id="00000000-0000-0000-0000-000000000001", request_id="req-1")

@@ -64,7 +64,7 @@ class OpenAICompatibleAdapter:
         api_key: str,
         *,
         transport: httpx.AsyncBaseTransport | None = None,
-        timeout: float = 30.0,
+        timeout: float = 120.0,
     ):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key

@@ -42,7 +42,9 @@ async def execute_run(
     }
     gateway = os.getenv("GATEWAY_BASE_URL", "http://127.0.0.1:8001").rstrip("/")
     try:
-        async with httpx.AsyncClient(timeout=90.0) as client:
+        async with httpx.AsyncClient(
+            timeout=float(os.getenv("RUN_REQUEST_TIMEOUT", "600"))
+        ) as client:
             response = await client.post(
                 f"{gateway}/a2a/{root_agent_id}",
                 headers=context_headers(context),

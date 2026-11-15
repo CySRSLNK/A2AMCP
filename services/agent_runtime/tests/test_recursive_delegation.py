@@ -147,6 +147,37 @@ def test_mcp_call_inherits_task_correlation_context():
     assert (server_id, name, arguments) == ("mcp-tools", "calculator", {"a": 1, "b": 2})
 
 
+def test_worker_accepts_compatible_model_decision_field_names():
+    mcp = FakeMcpClient()
+    runtime = AgentRuntime(
+        agent_id="worker-agent",
+        model=ScriptedModel(
+            [{
+                "type": "mcp_call",
+                "server": "mcp-tools",
+                "tool": "calculator",
+                "arguments": {"a": 2, "b": 3},
+                "summary": "calculate",
+            }]
+        ),
+        a2a_client=None,
+        mcp_client=mcp,
+    )
+
+    result = asyncio.run(
+        runtime.handle_task(
+            TaskInput(run_id=uuid4(), prompt="calculate", agent_id="worker-agent")
+        )
+    )
+
+    assert result.status == "completed"
+    assert mcp.contexts[0][1:] == (
+        "mcp-tools",
+        "calculator",
+        {"a": 2, "b": 3},
+    )
+
+
 def test_model_decision_cannot_delegate_to_unapproved_target():
     runtime = AgentRuntime(
         agent_id="root-agent",

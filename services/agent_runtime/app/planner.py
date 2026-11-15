@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Literal
 from uuid import UUID, uuid4
 
+import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from shared.python.lab_core.contracts import CorrelationContext, ModelRequest
@@ -40,6 +41,21 @@ class AgentDecision(BaseModel):
         if self.action == "mcp_call" and not self.tool_name:
             raise ValueError("mcp_call action requires tool_name")
         return self
+
+
+def _normalize_model_decision(output: dict[str, Any]) -> dict[str, Any]:
+    """Accept common provider aliases while validating one canonical action schema."""
+    normalized = dict(output)
+    aliases = {
+        "action": "type",
+        "target_agent": "target",
+        "server_id": "server",
+        "tool_name": "tool",
+    }
+    for canonical, alias in aliases.items():
+        if canonical not in normalized and alias in normalized:
+            normalized[canonical] = normalized.pop(alias)
+    return normalized
 
 
 class TaskResult(BaseModel):
@@ -105,7 +121,9 @@ class AgentRuntime:
                     },
                 )
             )
-            decision = AgentDecision.model_validate(response.output)
+            decision = AgentDecision.model_validate(_normalize_model_decision(response.output))
+        except httpx.TimeoutException:
+            return TaskResult(status="failed", summary="model request timed out")
         except (ValidationError, ValueError) as exc:
             return TaskResult(status="failed", summary=f"invalid model decision: {exc}")
 
@@ -130,12 +148,15 @@ class AgentRuntime:
                 hop=task.hop,
                 request_id=str(task.task_id),
             )
-            result = await self.mcp_client.call_tool(
-                context,
-                decision.server_id,
-                decision.tool_name,
-                decision.arguments,
-            )
+            try:
+                result = await self.mcp_client.call_tool(
+                    context,
+                    decision.server_id,
+                    decision.tool_name,
+                    decision.arguments,
+                )
+            except httpx.TimeoutException:
+                return TaskResult(status="failed", summary="MCP request timed out")
             return TaskResult(status="completed", summary=decision.summary, output=result)
 
         target_agent = decision.target_agent
@@ -164,7 +185,10 @@ class AgentRuntime:
             hop=task.hop,
             request_id=str(task.task_id),
         )
-        child_result = await self.a2a_client.send(context, target_agent, child)
+        try:
+            child_result = await self.a2a_client.send(context, target_agent, child)
+        except httpx.TimeoutException:
+            return TaskResult(status="failed", summary="A2A delegation request timed out")
         return TaskResult(
             status=child_result.status,
             summary=decision.summary,
@@ -194,14 +218,18 @@ class AgentRuntime:
                 'fixture_http_get arguments: {"url":"fixture://..."}'
             )
         contracts = " ".join(tool_contracts) or "none"
+        chain = " -> ".join([*task.delegation_edges, self.agent_id]) or self.agent_id
         system = (
             "You are an agent in a mediated A2A/MCP security lab. "
             "Analyze the task and return exactly one JSON object, with no markdown. "
             "Allowed actions are answer, delegate, and mcp_call. "
             f"Your agent id is {self.agent_id}; current hop is {task.hop}. "
+            f"Current delegation chain is {chain}. "
             f"Allowed target agents: {targets}. Allowed MCP servers: {servers}. "
             f"Allowed MCP tools: {tools}. Tool contracts: {contracts}. "
+            "Use exactly these field names: action, summary, target_agent, server_id, tool_name, arguments. "
             "For delegate use target_agent. For mcp_call use server_id, tool_name, and arguments. "
+            "Do not use aliases such as type, server, or tool. "
             "Never invent targets, servers, tools, credentials, or network destinations. "
             "Return a concise summary in the summary field."
         )

@@ -11,15 +11,20 @@ from .routes import model as model_routes
 from .routes.model import ModelProxy, router as model_router
 from .routes.mcp import build_router as build_mcp_router
 from .mcp import McpProxy
+from .transport import HttpTransport
 
 
 app = FastAPI(title="A2A MCP Lab Gateway", version="0.1.0")
 event_client = EventClient(os.getenv("CONTROL_PLANE_URL", "http://control-plane:8000"))
+gateway_timeout = float(os.getenv("A2A_REQUEST_TIMEOUT", "300"))
+mcp_timeout = float(os.getenv("MCP_REQUEST_TIMEOUT", "60"))
+model_timeout = float(os.getenv("MODEL_REQUEST_TIMEOUT", "120"))
 proxy = A2AProxy(
     {
         "root-agent": os.getenv("ROOT_AGENT_URL", "http://root-agent:8100"),
         "worker-agent": os.getenv("WORKER_AGENT_URL", "http://worker-agent:8100"),
     },
+    transport=HttpTransport(timeout=gateway_timeout),
     event_sink=event_client.append,
     policy_engine=PolicyEngine(allowed_targets={"root-agent", "worker-agent"}),
 )
@@ -31,13 +36,14 @@ app.include_router(
                 "mcp-tools": os.getenv("MCP_TOOLS_URL", "http://mcp-tools:8200"),
                 "mcp-resources": os.getenv("MCP_RESOURCES_URL", "http://mcp-resources:8200"),
             },
+            transport=HttpTransport(timeout=mcp_timeout),
             policy_engine=PolicyEngine(allowed_targets={"mcp-tools", "mcp-resources"}),
             event_sink=event_client.append,
         )
     )
 )
 model_routes.provider_proxy = ModelProxy(
-    os.getenv("MODEL_BASE_URL", ""), os.getenv("MODEL_API_KEY", "")
+    os.getenv("MODEL_BASE_URL", ""), os.getenv("MODEL_API_KEY", ""), timeout=model_timeout
 )
 app.include_router(model_router)
 

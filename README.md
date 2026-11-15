@@ -22,6 +22,10 @@ MODEL_PROVIDER=openai-compatible
 MODEL_NAME=your-model
 MODEL_BASE_URL=http://model-service:8000
 MODEL_API_KEY=your-key
+MODEL_REQUEST_TIMEOUT=120
+A2A_REQUEST_TIMEOUT=300
+MCP_REQUEST_TIMEOUT=60
+RUN_REQUEST_TIMEOUT=600
 ```
 
 The model must return one JSON action. The agent runtime validates the action before execution:
@@ -39,6 +43,8 @@ The model must return one JSON action. The agent runtime validates the action be
 ```
 
 The root agent is allowed to delegate to `worker-agent` and has no MCP tools by default. The worker agent can delegate recursively and use `calculator` or `fixture_http_get`. Invalid JSON, unknown agents, unknown MCP servers, disallowed tools, and excessive hop depth fail closed.
+
+Each agent makes a fresh model decision when it receives a task, so the runtime can produce `root-agent -> worker-agent -> mcp-tools` or `root-agent -> worker-agent -> worker-agent -> mcp-tools` depending on the model output. The runtime accepts the canonical fields `action`, `target_agent`, `server_id`, and `tool_name`, and normalizes common provider aliases `type`, `target`, `server`, and `tool` before applying the same allowlist validation. The timeout variables above keep slower recursive model calls from being cut off by an intermediate HTTP hop.
 
 The first run in the workbench loads `scenarios/recursive-a2a-mcp.yaml`, creates a mediated run, and displays A2A/MCP events in sequence. The terminal equivalent is:
 
