@@ -94,4 +94,24 @@ describe("model output panel", () => {
 
     expect(markup).toContain("model request timed out");
   });
+
+  it("marks blocked orchestration summaries instead of presenting them as model output", () => {
+    const output = extractFinalOutput([
+      {
+        ...modelEvent(4, "completion.error", {}),
+        protocol: "a2a",
+        operation: "message/send.response",
+        context: { ...modelEvent(4, "completion.error", {}).context, agent_id: "control-plane" },
+        payload: {
+          result: {
+            status: "blocked",
+            summary: "读取 email.txt 后继续委派给 worker-agent",
+            output: {},
+          },
+        },
+      },
+    ]);
+
+    expect(output).toBe("[blocked] 读取 email.txt 后继续委派给 worker-agent");
+  });
 });

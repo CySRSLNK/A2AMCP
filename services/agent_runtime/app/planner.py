@@ -478,8 +478,11 @@ class AgentRuntime:
             "If the task requests an MCP or tool operation that is not in your allowed tool list, "
             "first complete any supported operations. Then delegate only the remaining unsupported work. "
             "When delegating after a tool call, treat completed tool results as already done and do not repeat them. "
-            "If no supported operation remains and an allowed target agent exists, delegate the original task to it "
-            "so that agent can decide how to continue instead of answering with a permission explanation. "
+            "Only delegate a remaining step when it explicitly requires an unavailable MCP/tool or a separate agent. "
+            "Summarization, translation, explanation, and synthesis of tool results are ordinary reasoning tasks; "
+            "answer them yourself after obtaining the needed data. "
+            "If an unavailable tool-dependent step remains and an allowed target agent exists, delegate the original task "
+            "to it so that agent can decide how to continue instead of answering with a permission explanation. "
             "Return a concise summary in the summary field."
         )
         messages = [

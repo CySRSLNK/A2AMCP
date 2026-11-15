@@ -142,3 +142,27 @@ def test_agent_prompt_uses_allowed_tools_before_delegating_unavailable_work():
     assert "Do not delegate an operation merely because another agent also has it" in system_message
     assert "delegate only the remaining unsupported work" in system_message
     assert "root agent should delegate file and tool requests" not in system_message
+
+
+def test_agent_prompt_treats_summary_and_translation_as_local_reasoning():
+    model = ScriptedModel()
+    runtime = AgentRuntime(
+        agent_id="worker-agent",
+        model=model,
+        a2a_client=None,
+        allowed_tools={"read_file"},
+    )
+
+    asyncio.run(
+        runtime.handle_task(
+            TaskInput(
+                run_id="55555555-5555-5555-5555-555555555555",
+                prompt="读取 example.txt，然后总结并翻译成中文",
+                agent_id="worker-agent",
+            )
+        )
+    )
+
+    system_message = model.requests[0].messages[0]["content"]
+    assert "Summarization, translation, explanation, and synthesis" in system_message
+    assert "answer them yourself" in system_message

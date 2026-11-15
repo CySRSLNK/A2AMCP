@@ -49,7 +49,10 @@ export function extractFinalOutput(events: ProtocolEvent[]): string | null {
   const result = asRecord(asRecord(finalEvent.payload).result);
   const output = outputText(result.output);
   if (output) return output;
-  if (typeof result.summary === "string" && result.summary) return result.summary;
+  if (typeof result.summary === "string" && result.summary) {
+    const status = typeof result.status === "string" ? result.status : "";
+    return status && status !== "completed" ? `[${status}] ${result.summary}` : result.summary;
+  }
   const error = outputText(asRecord(finalEvent.payload).error);
   return error;
 }
