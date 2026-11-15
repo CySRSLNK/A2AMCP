@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { createRun, importScenario, listEvents, listScenarios, seededScenario, type ProtocolEvent, type Run, type Scenario } from "./api/client";
+import { createRun, getAttackPlan, importScenario, listAttacks, listEvents, listScenarios, seededScenario, type AttackPlan, type AttackSummary, type ProtocolEvent, type Run, type Scenario } from "./api/client";
 import { subscribeRunEvents } from "./api/events";
 import { EventTimeline } from "./features/runs/EventTimeline";
 import { InspectorPanel } from "./features/runs/InspectorPanel";
 import { TopologyPanel } from "./features/runs/TopologyPanel";
 import { ReplayControls } from "./features/replay/ReplayControls";
 import { ScenarioForm } from "./features/scenarios/ScenarioForm";
+import { AttackCatalogPanel } from "./features/attacks/AttackCatalogPanel";
 import "./styles.css";
 
 function App() {
@@ -19,10 +20,30 @@ function App() {
   const [selectedEvent, setSelectedEvent] = useState<ProtocolEvent>();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("Ready for a mediated run.");
+  const [attacks, setAttacks] = useState<AttackSummary[]>([]);
+  const [selectedAttackId, setSelectedAttackId] = useState("");
+  const [attackPlan, setAttackPlan] = useState<AttackPlan>();
+  const [attackLoading, setAttackLoading] = useState(false);
 
   useEffect(() => {
     listScenarios().then(setScenarios).catch(() => setMessage("Control plane is offline. Seed a scenario after starting it."));
+    listAttacks().then((items) => {
+      setAttacks(items);
+      setSelectedAttackId(items[0]?.id ?? "");
+    }).catch(() => setMessage("Attack catalog is unavailable."));
   }, []);
+
+  useEffect(() => {
+    if (!selectedAttackId) {
+      setAttackPlan(undefined);
+      return;
+    }
+    setAttackLoading(true);
+    getAttackPlan(selectedAttackId)
+      .then(setAttackPlan)
+      .catch(() => setAttackPlan(undefined))
+      .finally(() => setAttackLoading(false));
+  }, [selectedAttackId]);
 
   useEffect(() => {
     if (!run) return;
@@ -69,6 +90,7 @@ function App() {
         <label className="prompt-field" htmlFor="prompt"><span>Operator prompt</span><textarea id="prompt" rows={2} value={prompt} onChange={(event) => setPrompt(event.target.value)} disabled={busy} /></label>
         <button className="primary-button" type="button" onClick={start} disabled={busy}>{busy ? "Working..." : "Start mediated run"}</button>
       </section>
+      <AttackCatalogPanel attacks={attacks} selectedId={selectedAttackId} plan={attackPlan} loading={attackLoading} onSelect={setSelectedAttackId} />
       <p className="system-message" role="status">{message}</p>
       <div className="workspace-grid">
         <div className="main-column"><TopologyPanel run={run} /><EventTimeline events={events} selected={selectedEvent?.event_id} onSelect={setSelectedEvent} /></div>

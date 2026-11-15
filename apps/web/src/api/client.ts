@@ -40,6 +40,54 @@ export interface ProtocolEvent {
   occurred_at: string;
 }
 
+export interface AttackEventExpectation {
+  protocol: "a2a" | "mcp";
+  operation: string;
+  direction: "inbound" | "outbound";
+  actor?: string | null;
+  target?: string | null;
+  relation: "required" | "optional";
+  min_count: number;
+}
+
+export interface AttackSummary {
+  id: string;
+  version: number;
+  protocol_path: "cross-mcp" | "a2a-mcp";
+  runnable: boolean;
+  fixture_scenario_id?: string | null;
+  category: string;
+  title: string;
+  summary: string;
+  safe_fixture: "local-only";
+}
+
+export interface AttackCase extends AttackSummary {
+  sources: Array<{ id: string; kind: string }>;
+  preconditions: {
+    required_agents: string[];
+    required_mcp_servers: string[];
+    required_capabilities: string[];
+    required_policy: Record<string, unknown>;
+  };
+  injection_point: {
+    component: string;
+    trust_boundary: string;
+    input_kind: string;
+  };
+  expected_events: AttackEventExpectation[];
+  impact: string;
+  oracle: {
+    observable: string[];
+    expected_decision: string;
+  };
+  dry_run_prompt: string;
+  mitigations: string[];
+  notes: string[];
+}
+
+export type AttackPlan = AttackCase & { plan_mode: "read-only" };
+
 export const API_BASE = (import.meta.env.VITE_CONTROL_PLANE_URL as string | undefined) ?? "http://127.0.0.1:8000";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -107,4 +155,18 @@ export function replayRun(runId: string) {
   return request<{ replay_run_id: string; event_count: number }>(`/api/v1/runs/${runId}/replay`, {
     method: "POST",
   });
+}
+
+export function listAttacks() {
+  return request<AttackSummary[]>("/api/v1/attacks");
+}
+
+export function getAttack(attackId: string, version?: number) {
+  const query = version ? `?version=${version}` : "";
+  return request<AttackCase>(`/api/v1/attacks/${attackId}${query}`);
+}
+
+export function getAttackPlan(attackId: string, version?: number) {
+  const query = version ? `?version=${version}` : "";
+  return request<AttackPlan>(`/api/v1/attacks/${attackId}/plan${query}`);
 }
