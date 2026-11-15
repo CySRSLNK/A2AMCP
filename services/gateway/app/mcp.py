@@ -86,14 +86,21 @@ class McpProxy:
             decision = self.policy_engine.evaluate(context, operation, server_id, params)
             if decision.outcome != "allow":
                 raise PermissionError(decision.reason)
-        payload = {"jsonrpc": "2.0", "id": next(self._ids), "method": method, "params": params}
-        self._emit(context, operation, "outbound", payload, "request")
+        rpc_id = next(self._ids)
+        payload = {"jsonrpc": "2.0", "id": rpc_id, "method": method, "params": params}
+        self._emit(context, operation, "outbound", payload, f"rpc-{rpc_id}:request")
         response = await self.transport.request(
             "POST", f"{base_url}/mcp", context=context, payload=payload
         )
         response.raise_for_status()
         body = response.json()
-        self._emit(context, operation, "inbound", body.get("result", body), "response")
+        self._emit(
+            context,
+            operation,
+            "inbound",
+            body.get("result", body),
+            f"rpc-{rpc_id}:response",
+        )
         if "error" in body:
             raise RuntimeError(body["error"].get("message", "MCP request failed"))
         return body["result"]

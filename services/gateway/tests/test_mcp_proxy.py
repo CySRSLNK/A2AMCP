@@ -68,3 +68,30 @@ def test_mcp_proxy_reads_resources_and_applies_tool_policy():
         assert "approval" in str(exc)
     else:
         raise AssertionError("approval-required tool call was forwarded")
+
+
+def test_repeated_tool_calls_have_distinct_event_keys():
+    events = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = httpx.Response(200, content=request.read()).json()
+        return httpx.Response(
+            200,
+            json={
+                "jsonrpc": "2.0",
+                "id": payload["id"],
+                "result": {"content": [{"type": "text", "text": payload["params"]["arguments"]["path"]}]},
+            },
+        )
+
+    proxy = McpProxy(
+        {"mcp-file-reader": "http://mcp-file-reader:8200"},
+        transport=HttpTransport(httpx.MockTransport(handler)),
+        event_sink=events.append,
+    )
+    asyncio.run(proxy.call_tool(context(), "mcp-file-reader", "read_file", {"path": "email.txt"}))
+    asyncio.run(proxy.call_tool(context(), "mcp-file-reader", "read_file", {"path": "example.txt"}))
+
+    keys = [event.source_event_key for event in events]
+    assert len(keys) == 4
+    assert len(set(keys)) == 4
