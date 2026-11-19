@@ -11,5 +11,3 @@ coverage/
 data/
 .superpowers/
 fixtures/*
-!fixtures/example.txt
-!fixtures/email.txt
